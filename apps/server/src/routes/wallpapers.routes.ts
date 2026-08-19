@@ -1,3 +1,4 @@
+import { prisma } from "@screen-recorder/db";
 import { Router } from "express";
 
 export const wallpapersRouter: Router = Router();
@@ -11,13 +12,16 @@ export const wallpapersRouter: Router = Router();
 /**
  * GET /api/v1/wallpapers
  *
- * List wallpapers available to the current user. For v1 this is just the
- * curated defaults (isDefault: true, shared by everyone, no auth
- * required). Once custom upload ships, this also merges in the logged-in
- * user's own wallpapers (ownerId: req.user.id).
+ * List the curated default wallpapers. Public — no auth required. Once
+ * custom upload ships, this would also merge in the logged-in user's own
+ * wallpapers (ownerId: req.user.id) when a valid token is present.
  */
-wallpapersRouter.get("/", (req, res) => {
-  res.status(501).json({ error: "GET /wallpapers not implemented yet" });
+wallpapersRouter.get("/", async (_req, res) => {
+  const wallpapers = await prisma.wallpaper.findMany({
+    where: { isDefault: true },
+    orderBy: { createdAt: "asc" },
+  });
+  res.status(200).json({ wallpapers });
 });
 
 /**

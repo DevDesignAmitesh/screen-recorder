@@ -1,8 +1,8 @@
 # screen-recorder
 
 Windows-friendly screen recorder: screen share + face cam + custom wallpaper
-backgrounds + face-cam templates, composited and recorded entirely in the
-browser, with an account/library layer on top.
+backgrounds, composited and recorded entirely in the browser, with an
+account/history layer on top.
 
 ## Stack
 
@@ -27,10 +27,10 @@ forgot-password yet (planned as its own later phase).
 Recordings are **never uploaded anywhere** — the browser composites and
 records the video client-side and saves it straight to the user's own
 filesystem (download / File System Access API). The server only stores
-metadata about each recording (title, duration, when, which wallpaper/
-template was used) so we can show a history and counts — there's no
-server-side copy of the video to play back. This keeps v1 free of any
-cloud storage bill or file-upload engineering.
+metadata about each recording (title, duration, when, which wallpaper was
+used) so we can show a history and counts — there's no server-side copy of
+the video to play back. This keeps v1 free of any cloud storage bill or
+file-upload engineering.
 
 Wallpapers, for now, are curated defaults only — static images in
 `apps/web/public/wallpapers/`, referenced by URL in the `Wallpaper` table
@@ -39,17 +39,28 @@ deferred — there's no storage service in this codebase; one would need to
 be added when that (or a future opt-in "save recording to cloud" feature)
 gets picked up.
 
+### No face-cam templates (v1)
+
+There's no template/position picker for the webcam overlay — it's a fixed
+circle in the bottom-right corner (see `apps/web/src/lib/recording/compositor.ts`).
+Deliberately cut for v1 to keep scope down; the `Template` model/routes
+that used to exist for this were removed.
+
 ## Layout
 
 ```
 apps/
-  web/              Next.js app — auth pages (signup/login/dashboard) + the recording engine (later phases)
-  server/            Express API
-    src/routes/       auth (implemented), wallpapers/templates/recordings (skeletons)
-    src/middleware/    requireAuth guard (implemented)
-    src/lib/           jwt + password hashing helpers
+  web/
+    src/app/           signup, login, dashboard, record (all implemented)
+    src/lib/recording/ capture.ts (getDisplayMedia/getUserMedia), compositor.ts
+                         (canvas drawing loop), recorder.ts (MediaRecorder wrapper)
+  server/
+    src/routes/         auth + wallpapers + recordings (all implemented — the
+                         only gaps left are GET/DELETE on a single recording)
+    src/middleware/     requireAuth guard
+    src/lib/            jwt + password hashing helpers
 packages/
-  common/            shared Zod schemas + inferred types (auth, more later) — used by both apps/server and apps/web
+  common/            shared Zod schemas + inferred types (auth, recordings) — used by both apps/server and apps/web
   db/                Prisma schema + generated client + default-wallpaper seed
   notifications/     channel-based OTP sender (email/Resend) — unused in v1, reserved for forgot-password later
 ```
@@ -92,11 +103,56 @@ directly rather than re-exporting through a `./other-file.js`-style barrel.
 
 ## Status
 
-**Phase 0** (scaffold): done — monorepo structure, Express route skeletons.
+**Phase 0** (scaffold): done.
 
 **Phase 1** (auth): done — signup, login, `/me`, `requireAuth` middleware,
 and the corresponding Next.js pages (`/signup`, `/login`, `/dashboard`)
 with a token persisted client-side. Forgot-password intentionally deferred.
 
-Wallpapers/templates/recordings routes are still skeletons — see
-`apps/server/src/routes/` for what each will do.
+**Phase 2** (recording engine): done — `/record` page, behind auth. Screen +
+webcam + mic capture (webcam/mic always requested together up front so they
+can be toggled live), canvas compositor (wallpaper background, padded/
+rounded screen frame, fixed circular webcam overlay that's fully removed
+— not just blacked out — when the camera's toggled off), countdown,
+start/pause/resume/stop, live mute-mic/toggle-camera during recording,
+`MediaRecorder` → MP4 where the browser supports encoding it (feature-detected,
+falls back to WebM otherwise) → local download, and a single "Download &
+save" action that downloads first and only then logs the metadata
+(`POST /api/v1/recordings`) — never the other way around. `GET /api/v1/wallpapers`,
+`POST /api/v1/recordings`, and `GET /api/v1/recordings` are all real; only
+per-recording GET/DELETE are still skeleton stubs. The dashboard renders
+the history list.
+
+The compositor's draw loop uses `setInterval`, not `requestAnimationFrame`
+— rAF is throttled to effectively paused by the browser when the tab
+running the recorder itself is backgrounded (switching tabs mid-recording),
+which froze the recorded video while audio (a separate, unaffected
+pipeline) kept going. `setInterval` doesn't have that problem.
+
+### How to test Phase 2
+
+1. `docker compose up -d`, `bun run dev` from the repo root. If you only
+   changed server code, note `apps/server`'s `dev` script has no
+   `--watch` — restart that process manually to pick up changes.
+2. Sign up / log in, then go to `/dashboard` → "New recording".
+3. Pick a wallpaper (a checkmark badge shows which one's selected), leave
+   face cam + mic checked, click "Choose what to share" — pick a
+   **different window or your whole screen**, not this tab (sharing this
+   tab causes an infinite mirror effect — the app can hint the picker
+   toward "Entire Screen" but can't fully prevent this).
+4. Confirm the live preview: wallpaper behind a rounded screen-share
+   frame, your face in a circle bottom-right.
+5. Try switching to another tab mid-preview/recording and back — video
+   should keep updating, not freeze.
+6. "Start recording" → 3-2-1 countdown → recording (timer). Try "Turn
+   camera off" (circle should disappear entirely, not just go black) and
+   "Mute mic", then turn them back on. Try Pause/Resume.
+7. "Stop" → give it a title → "Download & save" — confirm the file
+   downloads (as `.mp4` if your browser supports MediaRecorder-to-MP4,
+   otherwise `.webm`) and check the row landed:
+   `docker exec screen-recorder-postgres psql -U postgres -d screen_recorder -c 'SELECT * FROM "Recording";'`
+8. Back on `/dashboard`, confirm the recording shows up in the history list.
+
+Known rough edges to expect: no template/position choice (fixed bottom-right
+circle), no system/tab audio mixing (mic only), can't fully prevent
+self-capture (only hinted against).

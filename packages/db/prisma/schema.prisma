@@ -22,7 +22,6 @@ model User {
   updatedAt    DateTime @updatedAt
 
   wallpapers Wallpaper[]
-  templates  Template[]
   recordings Recording[]
 }
 
@@ -44,44 +43,11 @@ model Wallpaper {
   @@index([ownerId])
 }
 
-/// A face-cam layout preset: where/how the webcam feed is overlaid on
-/// the composited recording. Either a built-in default or user-saved.
-model Template {
-  id        String            @id @default(cuid())
-  name      String
-  position  TemplatePosition
-  shape     TemplateShape
-  size      Int               @default(220) // webcam diameter/side length in px, at a reference resolution
-  isDefault Boolean           @default(false)
-  createdAt DateTime          @default(now())
-
-  ownerId String?
-  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
-  recordings Recording[]
-
-  @@index([ownerId])
-}
-
-enum TemplatePosition {
-  TOP_LEFT
-  TOP_RIGHT
-  BOTTOM_LEFT
-  BOTTOM_RIGHT
-  CENTER
-}
-
-enum TemplateShape {
-  CIRCLE
-  ROUNDED_SQUARE
-  FULL_HEIGHT_STRIP
-}
-
 /// Metadata for a finished recording. The video file itself is never
 /// uploaded anywhere — it's saved by the browser straight to the user's
 /// own filesystem (download / File System Access API). This row exists
 /// so the user has a history of what they've recorded (title, when,
-/// how long, which wallpaper/template) and so we can show counts like
+/// how long, which wallpaper was used) and so we can show counts like
 /// "how many recordings has this user made" — there is no server-side
 /// copy of the video to play back.
 model Recording {
@@ -95,9 +61,6 @@ model Recording {
 
   wallpaperId String?
   wallpaper   Wallpaper? @relation(fields: [wallpaperId], references: [id], onDelete: SetNull)
-
-  templateId String?
-  template   Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@index([ownerId])
 }

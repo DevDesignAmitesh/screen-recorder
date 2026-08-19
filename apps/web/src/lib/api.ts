@@ -1,4 +1,4 @@
-import type { LoginInput, SignupInput } from "@screen-recorder/common";
+import type { CreateRecordingInput, LoginInput, SignupInput } from "@screen-recorder/common";
 
 // Thin fetch wrapper around the Express API (apps/server). Every call
 // hits NEXT_PUBLIC_API_URL directly from the browser — there's no Next.js
@@ -56,4 +56,34 @@ export const authApi = {
   login: (input: LoginInput) => request<AuthResponse>("/api/v1/auth/login", { method: "POST", body: input }),
 
   me: (token: string) => request<{ user: AuthUser }>("/api/v1/auth/me", { token }),
+};
+
+export interface Wallpaper {
+  id: string;
+  name: string;
+  url: string;
+  isDefault: boolean;
+  createdAt: string;
+  ownerId: string | null;
+}
+
+export const wallpapersApi = {
+  list: () => request<{ wallpapers: Wallpaper[] }>("/api/v1/wallpapers"),
+};
+
+export interface Recording {
+  id: string;
+  title: string;
+  duration: number;
+  createdAt: string;
+  ownerId: string;
+  wallpaperId: string | null;
+  wallpaper?: { id: string; name: string; url: string } | null;
+}
+
+export const recordingsApi = {
+  create: (input: CreateRecordingInput, token: string) =>
+    request<{ recording: Recording }>("/api/v1/recordings", { method: "POST", body: input, token }),
+
+  list: (token: string) => request<{ recordings: Recording[] }>("/api/v1/recordings", { token }),
 };

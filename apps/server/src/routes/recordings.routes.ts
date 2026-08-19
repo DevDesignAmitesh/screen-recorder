@@ -1,4 +1,10 @@
+import { createRecordingSchema } from "@screen-recorder/common";
+import { prisma } from "@screen-recorder/db";
 import { Router } from "express";
+
+import { requireAuth } from "../middleware/auth.js";
+
+const WALLPAPER_SUMMARY_SELECT = { id: true, name: true, url: true } as const;
 
 export const recordingsRouter: Router = Router();
 
@@ -13,27 +19,46 @@ export const recordingsRouter: Router = Router();
  * GET /api/v1/recordings
  *
  * List the current user's recording history (their dashboard). Protected
- * by `requireAuth`. Supports pagination later (?cursor/?limit). Returns
- * metadata only (title, duration, createdAt, wallpaper/template used) —
- * there's no video file to link to or play back.
+ * by `requireAuth`. Returns metadata only (title, duration, createdAt,
+ * wallpaper used) — there's no video file to link to or play back.
  */
-recordingsRouter.get("/", (req, res) => {
-  res.status(501).json({ error: "GET /recordings not implemented yet" });
+recordingsRouter.get("/", requireAuth, async (req, res) => {
+  const recordings = await prisma.recording.findMany({
+    where: { ownerId: req.user!.id },
+    orderBy: { createdAt: "desc" },
+    include: { wallpaper: { select: WALLPAPER_SUMMARY_SELECT } },
+  });
+  res.status(200).json({ recordings });
 });
 
 /**
  * POST /api/v1/recordings
  *
  * Log a finished recording the user just saved locally. Protected by
- * `requireAuth`.
- *   1. Validate body: { title, duration, wallpaperId?, templateId? }.
- *      No file is attached — the browser already saved the video itself.
- *   2. Create a Recording row (ownerId, title, duration, wallpaperId,
- *      templateId).
- *   3. Respond 201 with the created recording record.
+ * `requireAuth`. No file is attached — the browser already saved the
+ * video itself; this just records what happened.
  */
-recordingsRouter.post("/", (req, res) => {
-  res.status(501).json({ error: "POST /recordings not implemented yet" });
+recordingsRouter.post("/", requireAuth, async (req, res) => {
+  const parsed = createRecordingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const { title, duration, wallpaperId } = parsed.data;
+
+  if (wallpaperId) {
+    const wallpaper = await prisma.wallpaper.findUnique({ where: { id: wallpaperId } });
+    if (!wallpaper) {
+      res.status(400).json({ error: "Unknown wallpaperId" });
+      return;
+    }
+  }
+
+  const recording = await prisma.recording.create({
+    data: { title, duration, wallpaperId, ownerId: req.user!.id },
+  });
+
+  res.status(201).json({ recording });
 });
 
 /**
