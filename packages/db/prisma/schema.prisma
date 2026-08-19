@@ -12,41 +12,18 @@ datasource db {
   provider = "postgresql"
 }
 
-/// A registered user of the app.
+/// A registered user of the app. Auth is plain email+password — no email
+/// verification step (kept deliberately simple for v1; see auth.routes.ts).
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  emailVerified Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  otpCodes   OtpCode[]
   wallpapers Wallpaper[]
   templates  Template[]
   recordings Recording[]
-}
-
-/// One-time codes used for email (and later SMS) verification/login.
-/// A row is created on signup, checked + invalidated in /auth/verify-otp.
-model OtpCode {
-  id        String   @id @default(cuid())
-  code      String
-  purpose   OtpPurpose @default(SIGNUP_VERIFICATION)
-  expiresAt DateTime
-  consumedAt DateTime?
-  createdAt DateTime @default(now())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-enum OtpPurpose {
-  SIGNUP_VERIFICATION
-  LOGIN
-  PASSWORD_RESET
 }
 
 /// A background image shown behind the screen-share frame while recording.
@@ -100,11 +77,16 @@ enum TemplateShape {
   FULL_HEIGHT_STRIP
 }
 
-/// A finished, exported recording saved to a user's library.
+/// Metadata for a finished recording. The video file itself is never
+/// uploaded anywhere — it's saved by the browser straight to the user's
+/// own filesystem (download / File System Access API). This row exists
+/// so the user has a history of what they've recorded (title, when,
+/// how long, which wallpaper/template) and so we can show counts like
+/// "how many recordings has this user made" — there is no server-side
+/// copy of the video to play back.
 model Recording {
   id       String  @id @default(cuid())
   title    String
-  url      String
   duration Int // seconds
   createdAt DateTime @default(now())
 

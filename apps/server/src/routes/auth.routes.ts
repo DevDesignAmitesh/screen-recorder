@@ -1,87 +1,92 @@
+import { loginSchema, signupSchema } from "@screen-recorder/common";
+import { prisma } from "@screen-recorder/db";
 import { Router } from "express";
+
+import { signAuthToken } from "../lib/jwt.js";
+import { requireAuth } from "../middleware/auth.js";
+import { hashPassword, verifyPassword } from "../lib/password.js";
 
 export const authRouter: Router = Router();
 
 /**
  * POST /api/v1/auth/signup
  *
- * Create a new (unverified) user account.
- *   1. Validate body: { email, password }.
- *   2. Check email isn't already registered (@screen-recorder/db).
- *   3. Hash the password (bcrypt/argon2) and create the User row
- *      with `emailVerified: false`.
- *   4. Generate a 6-digit OTP, store it (OtpCode table) with an
- *      expiry (e.g. 10 min), tied to the user's email.
- *   5. Send the OTP via @screen-recorder/notifications (email channel,
- *      Resend under the hood).
- *   6. Respond 201 with a message to check email — do NOT issue an
- *      auth token yet; the account is unverified until step below.
+ * Create a new account with email + password and log the user in
+ * immediately — no email verification step (kept deliberately simple
+ * for v1).
  */
-authRouter.post("/signup", (req, res) => {
-  res.status(501).json({ error: "POST /auth/signup not implemented yet" });
-});
+authRouter.post("/signup", async (req, res) => {
+  const parsed = signupSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const { email, password } = parsed.data;
 
-/**
- * POST /api/v1/auth/verify-otp
- *
- * Verify the OTP sent on signup and activate the account.
- *   1. Validate body: { email, otp }.
- *   2. Look up the latest non-expired OtpCode for that email.
- *   3. Compare the submitted code; on mismatch/expiry return 400.
- *   4. On success: mark User.emailVerified = true, delete/invalidate
- *      the OTP row.
- *   5. Issue an auth token (JWT) and return it — user is now logged in.
- */
-authRouter.post("/verify-otp", (req, res) => {
-  res.status(501).json({ error: "POST /auth/verify-otp not implemented yet" });
-});
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    res.status(409).json({ error: "An account with this email already exists" });
+    return;
+  }
 
-/**
- * POST /api/v1/auth/resend-otp
- *
- * Re-send a fresh OTP for an unverified account.
- *   1. Validate body: { email }.
- *   2. Ensure the user exists and isn't already verified.
- *   3. Invalidate any previous OTP rows for that email.
- *   4. Generate + store a new OTP, send via @screen-recorder/notifications.
- *   5. Respond 200. Consider rate-limiting this endpoint.
- */
-authRouter.post("/resend-otp", (req, res) => {
-  res.status(501).json({ error: "POST /auth/resend-otp not implemented yet" });
+  const passwordHash = await hashPassword(password);
+  const user = await prisma.user.create({ data: { email, passwordHash } });
+
+  const token = signAuthToken({ sub: user.id, email: user.email });
+  res.status(201).json({ token, user: { id: user.id, email: user.email } });
 });
 
 /**
  * POST /api/v1/auth/login
  *
- * Authenticate a verified user with email + password.
- *   1. Validate body: { email, password }.
- *   2. Look up user by email; 401 if not found.
- *   3. Reject if `emailVerified` is false (ask them to verify first).
- *   4. Compare password hash; 401 on mismatch.
- *   5. Issue an auth token (JWT, short-lived) + return user profile.
+ * Authenticate with email + password and issue an auth token.
  */
-authRouter.post("/login", (req, res) => {
-  res.status(501).json({ error: "POST /auth/login not implemented yet" });
+authRouter.post("/login", async (req, res) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const { email, password } = parsed.data;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    res.status(401).json({ error: "User not found please create account" });
+    return;
+  }
+
+  const valid = await verifyPassword(password, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
+
+  const token = signAuthToken({ sub: user.id, email: user.email });
+  res.status(200).json({ token, user: { id: user.id, email: user.email } });
 });
 
 /**
  * POST /api/v1/auth/logout
  *
- * Invalidate the current session/token.
- *   1. If using stateless JWTs: instruct client to discard the token
- *      (and/or clear the auth cookie if we store it in a cookie).
- *   2. If we later add refresh-token/session tracking, revoke it here.
+ * Stateless JWT — there's nothing to invalidate server-side yet. The
+ * client just discards the token. Kept as a real endpoint so a future
+ * session/refresh-token table has somewhere to plug in revocation.
  */
-authRouter.post("/logout", (req, res) => {
-  res.status(501).json({ error: "POST /auth/logout not implemented yet" });
+authRouter.post("/logout", (_req, res) => {
+  res.status(200).json({ message: "Logged out" });
 });
 
 /**
  * GET /api/v1/auth/me
  *
- * Return the currently authenticated user's profile.
- * Protected by `requireAuth` middleware — req.user is populated by then.
+ * Return the currently authenticated user's profile. Protected by
+ * requireAuth — req.user is populated by then.
  */
-authRouter.get("/me", (req, res) => {
-  res.status(501).json({ error: "GET /auth/me not implemented yet" });
+authRouter.get("/me", requireAuth, async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.status(200).json({ user: { id: user.id, email: user.email } });
 });

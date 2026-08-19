@@ -2,14 +2,19 @@ import { Router } from "express";
 
 export const wallpapersRouter: Router = Router();
 
+// v1 design note: only curated default wallpapers exist for now (seeded
+// via packages/db/prisma/seed.ts, served as static assets from apps/web/public
+// and referenced by URL in the Wallpaper table). Custom wallpaper upload
+// is deferred to a later phase — it'll need a real storage service
+// (there's none in this codebase yet) to hold user-uploaded images.
+
 /**
  * GET /api/v1/wallpapers
  *
- * List wallpapers available to the current user:
- *   1. Default/curated wallpapers (isDefault: true, shared by everyone).
- *   2. This user's own uploaded wallpapers (ownerId: req.user.id).
- * Public defaults should be visible even to logged-out users; combine
- * with req.user (if present) to also include their custom ones.
+ * List wallpapers available to the current user. For v1 this is just the
+ * curated defaults (isDefault: true, shared by everyone, no auth
+ * required). Once custom upload ships, this also merges in the logged-in
+ * user's own wallpapers (ownerId: req.user.id).
  */
 wallpapersRouter.get("/", (req, res) => {
   res.status(501).json({ error: "GET /wallpapers not implemented yet" });
@@ -18,27 +23,22 @@ wallpapersRouter.get("/", (req, res) => {
 /**
  * POST /api/v1/wallpapers
  *
- * Upload a custom wallpaper image. Protected by `requireAuth`.
- *   1. Accept a multipart image upload (multer or similar), validate
- *      type/size (e.g. png/jpg/webp, capped at a few MB).
- *   2. Upload the file via @screen-recorder/video-storage (S3-compatible
- *      bucket, under a per-user prefix like `wallpapers/{userId}/...`).
- *   3. Create a Wallpaper row (ownerId, url/key, isDefault: false).
- *   4. Respond 201 with the created wallpaper record.
+ * Deferred for v1 — custom wallpaper upload needs a real storage service
+ * standing up first (none exists in this codebase yet). Once it does:
+ * accept a multipart image upload, validate it, upload it, then create
+ * a Wallpaper row (ownerId, url, isDefault: false).
  */
 wallpapersRouter.post("/", (req, res) => {
-  res.status(501).json({ error: "POST /wallpapers not implemented yet" });
+  res.status(501).json({ error: "Custom wallpaper upload isn't available yet" });
 });
 
 /**
  * DELETE /api/v1/wallpapers/:id
  *
- * Delete a wallpaper the current user owns. Protected by `requireAuth`.
- *   1. Look up the wallpaper by id; 404 if missing.
- *   2. 403 if it doesn't belong to req.user (or is a default wallpaper).
- *   3. Delete the object from S3 via @screen-recorder/video-storage,
- *      then delete the DB row.
+ * Deferred for v1 along with upload — nothing to delete until users can
+ * upload their own wallpapers. Default wallpapers are never deletable
+ * via this route.
  */
 wallpapersRouter.delete("/:id", (req, res) => {
-  res.status(501).json({ error: "DELETE /wallpapers/:id not implemented yet" });
+  res.status(501).json({ error: "Custom wallpaper upload isn't available yet" });
 });

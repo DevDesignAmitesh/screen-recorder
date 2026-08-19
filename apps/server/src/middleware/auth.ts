@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
+import { verifyAuthToken } from "../lib/jwt.js";
+
 // Augment Express's Request so downstream handlers can read `req.user`
 // once this middleware has run.
 declare global {
@@ -17,16 +19,28 @@ declare global {
 /**
  * requireAuth
  *
- * Skeleton for the auth guard middleware. Once implemented, it will:
- *   1. Read the auth token from the `Authorization: Bearer <token>` header
- *      (issued at login, see routes/auth.routes.ts).
- *   2. Verify + decode the JWT (jsonwebtoken) using the server's secret.
- *   3. On success, attach `{ id, email }` to `req.user` and call `next()`.
- *   4. On missing/invalid/expired token, respond 401 Unauthorized.
+ * Reads the auth token from the `Authorization: Bearer <token>` header
+ * (issued at signup/login, see routes/auth.routes.ts), verifies +
+ * decodes the JWT, and attaches `{ id, email }` to `req.user`. Responds
+ * 401 on a missing/invalid/expired token.
  *
- * Apply this to any route that requires a logged-in user (wallpaper upload,
- * template CRUD, recording save/list/delete, etc).
+ * Apply this to any route that requires a logged-in user (wallpaper
+ * upload, template CRUD, recording save/list/delete, etc).
  */
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  res.status(501).json({ error: "requireAuth middleware not implemented yet" });
+  const header = req.headers.authorization;
+  const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
+
+  if (!token) {
+    res.status(401).json({ error: "Missing Authorization bearer token" });
+    return;
+  }
+
+  try {
+    const payload = verifyAuthToken(token);
+    req.user = { id: payload.sub, email: payload.email };
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
 }
