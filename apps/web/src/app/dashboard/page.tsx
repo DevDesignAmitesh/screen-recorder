@@ -63,7 +63,7 @@ export default function DashboardPage() {
     <div className="flex flex-1 flex-col">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="flex items-center gap-2 font-heading font-semibold tracking-tight">
+          <Link href="/" className="flex items-center gap-2 font-heading font-semibold tracking-tight">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Clapperboard className="h-4 w-4" />
             </span>
@@ -87,7 +87,9 @@ export default function DashboardPage() {
 
       <main className="relative flex-1 px-6 py-10">
         <div className="mx-auto max-w-5xl space-y-8 pb-20">
-          <h1 className="font-heading text-xl font-semibold tracking-tight">Your recordings</h1>
+          {!historyLoading && recordings.length > 0 && (
+            <h1 className="font-heading text-xl font-semibold tracking-tight">Your recordings</h1>
+          )}
 
           {error && <Alert>{error}</Alert>}
 
@@ -146,18 +148,22 @@ export default function DashboardPage() {
             to the same max-width column as the content above (not the raw
             edge of the browser window). The outer bar spans full width and
             ignores clicks; only the button inside the max-w-5xl inner div
-            is interactive. */}
-        <div className="pointer-events-none fixed inset-x-0 bottom-6 flex justify-center px-6">
-          <div className="flex w-full max-w-5xl justify-end">
-            <Link
-              href="/record"
-              className={`${buttonVariants({ variant: "primary", size: "lg" })} pointer-events-auto shadow-[0_8px_24px_rgba(219,39,119,0.35)]`}
-            >
-              <Video className="h-4 w-4" />
-              Start recording
-            </Link>
+            is interactive. Hidden when there are no recordings yet — the
+            empty state above already has its own "Start recording" CTA,
+            so this one would just be a redundant second button. */}
+        {!historyLoading && recordings.length > 0 && (
+          <div className="pointer-events-none fixed inset-x-0 bottom-6 flex justify-center px-6">
+            <div className="flex w-full max-w-5xl justify-end">
+              <Link
+                href="/record"
+                className={`${buttonVariants({ variant: "primary", size: "lg" })} pointer-events-auto shadow-[0_8px_24px_rgba(219,39,119,0.35)]`}
+              >
+                <Video className="h-4 w-4" />
+                Start recording
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

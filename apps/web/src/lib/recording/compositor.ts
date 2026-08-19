@@ -1,8 +1,10 @@
-// Draws the composited frame — wallpaper background, a padded/rounded
-// screen-share frame, and (if enabled) a fixed circular webcam overlay in
-// the bottom-right corner — onto a canvas, continuously. canvas.captureStream()
-// (see recorder.ts) reads straight off this canvas, so whatever's drawn
-// here is what gets recorded.
+// Draws the composited frame — wallpaper background, the screen share
+// inset with rounded corners (with a manual crop so browser chrome/OS
+// taskbars can be cut out — we can't reliably auto-detect those), and (if
+// enabled) a fixed circular webcam overlay in the bottom-right corner —
+// onto a canvas, continuously. canvas.captureStream() (see recorder.ts)
+// reads straight off this canvas, so whatever's drawn here is what gets
+// recorded.
 //
 // The draw loop is ticked from a Web Worker, not requestAnimationFrame or
 // a main-thread setInterval. Both of those are throttled by the browser
@@ -25,11 +27,27 @@ export interface CompositorOptions {
   height: number;
 }
 
-const FRAME_PADDING = 90;
-const FRAME_RADIUS = 24;
+/** Fractions (0–1) of the raw screen-share video to cut off each edge —
+ * for trimming out a browser's tab bar / OS taskbar, since there's no
+ * reliable way to detect those automatically. */
+export interface ScreenCrop {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+const NO_CROP: ScreenCrop = { top: 0, bottom: 0, left: 0, right: 0 };
+
 const WEBCAM_RADIUS = 110;
 const WEBCAM_MARGIN = 48;
 const TARGET_FPS = 30;
+
+// Proportions of the canvas's own width/height, so the frame scales
+// correctly regardless of the exact canvas size (see CANVAS_WIDTH/HEIGHT
+// in the record page).
+const FRAME_MARGIN = 0.06;
+const FRAME_RADIUS = 0.025;
 
 // Deliberately a plain string run inside a Blob-URL worker rather than a
 // separate .ts file — that sidesteps needing any bundler-specific worker
@@ -57,6 +75,7 @@ export class Compositor {
   private wallpaperImg: HTMLImageElement | null = null;
   private screenVideo: HTMLVideoElement | null = null;
   private webcamVideo: HTMLVideoElement | null = null;
+  private screenCrop: ScreenCrop = NO_CROP;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -79,6 +98,12 @@ export class Compositor {
 
   setWebcamVideo(video: HTMLVideoElement | null) {
     this.webcamVideo = video;
+  }
+
+  /** Fractions (0–1) trimmed off each edge of the raw screen video before
+   * it's fit into the mockup frame — for cutting out a tab bar/taskbar. */
+  setScreenCrop(crop: Partial<ScreenCrop>) {
+    this.screenCrop = { ...NO_CROP, ...crop };
   }
 
   start() {
@@ -129,52 +154,78 @@ export class Compositor {
       ctx.fillRect(0, 0, width, height);
     }
 
-    const frameX = FRAME_PADDING;
-    const frameY = FRAME_PADDING;
-    const frameW = width - FRAME_PADDING * 2;
-    const frameH = height - FRAME_PADDING * 2;
+    this.drawScreenFrame(width, height);
+    this.drawWebcamOverlay(width, height);
+  }
 
-    // Drop shadow behind the frame.
+  /** Just the screen-share, inset from the canvas edges (so the wallpaper
+   * shows around it) with rounded corners and a soft shadow — no extra
+   * chrome/frame drawn around it. */
+  private drawScreenFrame(width: number, height: number) {
+    const { ctx } = this;
+
+    const frameX = width * FRAME_MARGIN;
+    const frameY = height * FRAME_MARGIN;
+    const frameW = width - frameX * 2;
+    const frameH = height - frameY * 2;
+    const radius = width * FRAME_RADIUS;
+
+    // Soft shadow behind the frame.
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.4)";
-    ctx.shadowBlur = 40;
-    ctx.shadowOffsetY = 12;
-    roundedRectPath(ctx, frameX, frameY, frameW, frameH, FRAME_RADIUS);
+    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowBlur = width * 0.018;
+    ctx.shadowOffsetY = height * 0.01;
+    roundedRectPath(ctx, frameX, frameY, frameW, frameH, radius);
     ctx.fillStyle = "#111";
     ctx.fill();
     ctx.restore();
 
-    // Screen-share video, clipped to the rounded frame, letterboxed to fit.
     ctx.save();
-    roundedRectPath(ctx, frameX, frameY, frameW, frameH, FRAME_RADIUS);
+    roundedRectPath(ctx, frameX, frameY, frameW, frameH, radius);
     ctx.clip();
     ctx.fillStyle = "#111";
     ctx.fillRect(frameX, frameY, frameW, frameH);
     if (this.screenVideo && this.screenVideo.readyState >= 2) {
-      drawContain(ctx, this.screenVideo, frameX, frameY, frameW, frameH);
+      // Cover-fit, not contain — fills the frame completely (cropping any
+      // excess) so there's never a black letterbox/pillarbox bar showing
+      // when the shared screen's aspect ratio doesn't exactly match.
+      drawCoverCropped(ctx, this.screenVideo, this.screenCrop, frameX, frameY, frameW, frameH);
     }
     ctx.restore();
+  }
 
-    if (this.webcamVideo && this.webcamVideo.readyState >= 2) {
-      const cx = width - WEBCAM_MARGIN - WEBCAM_RADIUS;
-      const cy = height - WEBCAM_MARGIN - WEBCAM_RADIUS;
+  private drawWebcamOverlay(width: number, height: number) {
+    if (!this.webcamVideo || this.webcamVideo.readyState < 2) return;
+    const { ctx } = this;
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, WEBCAM_RADIUS, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
-      drawCover(ctx, this.webcamVideo, cx - WEBCAM_RADIUS, cy - WEBCAM_RADIUS, WEBCAM_RADIUS * 2, WEBCAM_RADIUS * 2);
-      ctx.restore();
+    const cx = width - WEBCAM_MARGIN - WEBCAM_RADIUS;
+    const cy = height - WEBCAM_MARGIN - WEBCAM_RADIUS;
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, WEBCAM_RADIUS, 0, Math.PI * 2);
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = "#fff";
-      ctx.stroke();
-      ctx.restore();
-    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, WEBCAM_RADIUS, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.shadowColor = "rgba(0,0,0,0.4)";
+    ctx.shadowBlur = 24;
+    ctx.fillStyle = "#000";
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, WEBCAM_RADIUS, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    drawCover(ctx, this.webcamVideo, cx - WEBCAM_RADIUS, cy - WEBCAM_RADIUS, WEBCAM_RADIUS * 2, WEBCAM_RADIUS * 2);
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, WEBCAM_RADIUS, 0, Math.PI * 2);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -208,12 +259,37 @@ function drawCover(ctx: CanvasRenderingContext2D, source: Drawable, x: number, y
   ctx.drawImage(source, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
-/** Draw `source` to fit within the target rect (letterboxed) — like CSS `object-fit: contain`. */
-function drawContain(ctx: CanvasRenderingContext2D, source: Drawable, x: number, y: number, w: number, h: number) {
-  const { w: sw, h: sh } = sourceSize(source);
+/** Draw `source` to cover the target rect (cropping overflow, no black
+ * letterbox/pillarbox bars), first trimming `crop` fractions off each
+ * edge of the source — like CSS `background-size: cover` plus a manual
+ * crop. Relies on the caller having already clipped the canvas to the
+ * target rect, since the scaled draw can extend past it. */
+function drawCoverCropped(
+  ctx: CanvasRenderingContext2D,
+  source: HTMLVideoElement,
+  crop: ScreenCrop,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+) {
+  const sw = source.videoWidth;
+  const sh = source.videoHeight;
   if (!sw || !sh) return;
-  const scale = Math.min(w / sw, h / sh);
-  const dw = sw * scale;
-  const dh = sh * scale;
-  ctx.drawImage(source, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+
+  const cropLeftPx = sw * clamp01(crop.left);
+  const cropRightPx = sw * clamp01(crop.right);
+  const cropTopPx = sh * clamp01(crop.top);
+  const cropBottomPx = sh * clamp01(crop.bottom);
+  const srcW = Math.max(1, sw - cropLeftPx - cropRightPx);
+  const srcH = Math.max(1, sh - cropTopPx - cropBottomPx);
+
+  const scale = Math.max(w / srcW, h / srcH);
+  const dw = srcW * scale;
+  const dh = srcH * scale;
+  ctx.drawImage(source, cropLeftPx, cropTopPx, srcW, srcH, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+
+function clamp01(n: number): number {
+  return Math.min(0.9, Math.max(0, n));
 }

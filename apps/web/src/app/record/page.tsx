@@ -16,9 +16,11 @@ import { Compositor } from "@/lib/recording/compositor";
 import { createRecorder, type RecorderHandle } from "@/lib/recording/recorder";
 
 // Internal render resolution for the composited canvas — fixed regardless
-// of the actual screen resolution being shared (see compositor.ts).
+// of the actual screen resolution being shared (see compositor.ts). 16:9
+// — standard widescreen, plays natively everywhere (YouTube etc).
 const CANVAS_WIDTH = 1920;
 const CANVAS_HEIGHT = 1080;
+const CANVAS_ASPECT = `${CANVAS_WIDTH}/${CANVAS_HEIGHT}`;
 
 type Stage = "setup" | "live" | "countdown" | "recording" | "paused" | "stopped";
 
@@ -35,6 +37,13 @@ export default function RecordPage() {
   const [micOn, setMicOn] = useState(true);
   const [camAvailable, setCamAvailable] = useState(true);
   const [micAvailable, setMicAvailable] = useState(true);
+  // How much of each edge of the raw screen-share to cut off — for
+  // trimming out a browser tab bar or OS taskbar, which we can't reliably
+  // detect automatically. Fractions of the video, 0–0.3 (30%).
+  const [cropTop, setCropTop] = useState(0);
+  const [cropBottom, setCropBottom] = useState(0);
+  const [cropLeft, setCropLeft] = useState(0);
+  const [cropRight, setCropRight] = useState(0);
   const [countdown, setCountdown] = useState(3);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +77,13 @@ export default function RecordPage() {
       router.replace("/login");
     }
   }, [loading, user, router]);
+
+  // Live-updates the compositor whenever a crop slider moves (compositor
+  // only exists once handleStartSetup has run, i.e. from "live" onward —
+  // the sliders aren't shown before that).
+  useEffect(() => {
+    compositorRef.current?.setScreenCrop({ top: cropTop, bottom: cropBottom, left: cropLeft, right: cropRight });
+  }, [cropTop, cropBottom, cropLeft, cropRight]);
 
   useEffect(() => {
     wallpapersApi
@@ -378,7 +394,7 @@ export default function RecordPage() {
           hidden until there's actually something to preview. */}
       <div
         className={`relative w-full overflow-hidden rounded-lg bg-black ${stage === "setup" ? "hidden" : ""}`}
-        style={{ aspectRatio: "16/9" }}
+        style={{ aspectRatio: CANVAS_ASPECT }}
       >
         <canvas ref={canvasRef} className="h-full w-full" />
         {stage === "countdown" && (
@@ -387,6 +403,18 @@ export default function RecordPage() {
           </div>
         )}
       </div>
+
+      {stage === "live" && (
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-[1.75rem] border border-border bg-card p-4">
+          <p className="col-span-2 text-sm font-medium">
+            Crop out a taskbar or tab bar <span className="font-normal text-muted-foreground">(if it's showing)</span>
+          </p>
+          <CropSlider label="Top" value={cropTop} onChange={setCropTop} />
+          <CropSlider label="Bottom" value={cropBottom} onChange={setCropBottom} />
+          <CropSlider label="Left" value={cropLeft} onChange={setCropLeft} />
+          <CropSlider label="Right" value={cropRight} onChange={setCropRight} />
+        </div>
+      )}
 
       {stage !== "setup" && (
         <div className="flex items-center justify-between">
@@ -477,5 +505,23 @@ export default function RecordPage() {
         </div>
       )}
     </main>
+  );
+}
+
+function CropSlider({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return (
+    <label className="flex items-center gap-3 text-sm">
+      <span className="w-14 shrink-0 text-muted-foreground">{label}</span>
+      <input
+        type="range"
+        min={0}
+        max={0.3}
+        step={0.01}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="flex-1 accent-primary"
+      />
+      <span className="w-10 shrink-0 text-right font-mono text-xs text-muted-foreground">{Math.round(value * 100)}%</span>
+    </label>
   );
 }
