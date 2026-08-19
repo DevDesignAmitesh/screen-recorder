@@ -1,0 +1,10 @@
+services:
+
+  http:
+    image: amitesh252/screensy-http-be:latest
+    ports:
+      - 3007:4000
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+    restart: on-failure
