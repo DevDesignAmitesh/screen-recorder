@@ -79,6 +79,17 @@ recordingsRouter.get("/:id", (req, res) => {
  * `requireAuth`. Just removes the DB row — there's no stored file to
  * clean up.
  */
-recordingsRouter.delete("/:id", (req, res) => {
-  res.status(501).json({ error: "DELETE /recordings/:id not implemented yet" });
+recordingsRouter.delete("/:id", requireAuth, async (req, res) => {
+  const recording = await prisma.recording.findUnique({ where: { id: req.params.id } });
+  if (!recording) {
+    res.status(404).json({ error: "Recording not found" });
+    return;
+  }
+  if (recording.ownerId !== req.user!.id) {
+    res.status(403).json({ error: "You don't own this recording" });
+    return;
+  }
+
+  await prisma.recording.delete({ where: { id: recording.id } });
+  res.status(204).send();
 });

@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { SiteHeader } from "@/components/site-header";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ApiError, authApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -39,62 +43,59 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-semibold">Create an account</h1>
+    <>
+      <SiteHeader />
+      <main className="flex flex-1 items-center justify-center px-6 pb-6 pt-28">
+        <div className="w-full max-w-sm space-y-6 rounded-[1.75rem] border border-border bg-card p-8">
+          <div className="space-y-1 text-center">
+            <h1 className="font-heading text-2xl font-semibold tracking-tight">Create an account</h1>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="email" className="text-sm font-medium">
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="password" className="text-sm font-medium">
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+              />
+            </div>
+
+            {error && <Alert>{error}</Alert>}
+
+            <Button type="submit" disabled={submitting} className="w-full">
+              {submitting ? "Creating account…" : "Sign up"}
+            </Button>
+          </form>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link href="/login" className="font-medium text-foreground underline">
+              Log in
+            </Link>
+          </p>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
-              placeholder="At least 8 characters"
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-black px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {submitting ? "Creating account…" : "Sign up"}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-gray-500">
-          Already have an account?{" "}
-          <Link href="/login" className="font-medium text-black underline">
-            Log in
-          </Link>
-        </p>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

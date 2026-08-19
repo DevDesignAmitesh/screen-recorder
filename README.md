@@ -1,8 +1,9 @@
-# screen-recorder
+# Screensy
 
 Windows-friendly screen recorder: screen share + face cam + custom wallpaper
 backgrounds, composited and recorded entirely in the browser, with an
-account/history layer on top.
+account/history layer on top. (Repo/package names still say `screen-recorder`
+internally — that's just infrastructure naming, not user-facing.)
 
 ## Stack
 

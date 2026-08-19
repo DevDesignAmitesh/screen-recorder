@@ -1,8 +1,14 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { ApiError, recordingsApi, wallpapersApi, type Wallpaper } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { startCapture, stopStream, type CaptureStreams } from "@/lib/recording/capture";
@@ -283,7 +289,7 @@ export default function RecordPage() {
   if (loading || !user) {
     return (
       <main className="flex flex-1 items-center justify-center p-6">
-        <p className="text-sm text-gray-500">Loading…</p>
+        <Spinner className="h-6 w-6 text-muted-foreground" />
       </main>
     );
   }
@@ -293,9 +299,14 @@ export default function RecordPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">Record</h1>
+      <Link href="/dashboard" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" />
+        Dashboard
+      </Link>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <h1 className="font-heading text-2xl font-semibold tracking-tight">Record</h1>
+
+      {error && <Alert>{error}</Alert>}
 
       {/* Hidden video elements feeding the compositor — not display:none so
           the browser keeps decoding frames from them reliably. */}
@@ -312,15 +323,15 @@ export default function RecordPage() {
                   key={wallpaper.id}
                   type="button"
                   onClick={() => setSelectedWallpaperId(wallpaper.id)}
-                  className={`relative aspect-video rounded-md bg-cover bg-center ring-2 ring-offset-2 transition ${
-                    selectedWallpaperId === wallpaper.id ? "ring-black" : "ring-transparent hover:ring-gray-300"
+                  className={`relative aspect-video rounded-lg bg-cover bg-center ring-2 ring-offset-2 ring-offset-background transition ${
+                    selectedWallpaperId === wallpaper.id ? "ring-primary" : "ring-transparent hover:ring-border"
                   }`}
                   style={{ backgroundImage: `url(${wallpaper.url})` }}
                   aria-label={wallpaper.name}
                   aria-pressed={selectedWallpaperId === wallpaper.id}
                 >
                   {selectedWallpaperId === wallpaper.id && (
-                    <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black text-xs text-white">
+                    <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
                       ✓
                     </span>
                   )}
@@ -331,24 +342,30 @@ export default function RecordPage() {
 
           <div className="flex gap-6">
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeWebcam} onChange={(e) => setIncludeWebcam(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={includeWebcam}
+                onChange={(e) => setIncludeWebcam(e.target.checked)}
+                className="accent-primary"
+              />
               Start with face cam on
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={includeMic} onChange={(e) => setIncludeMic(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={includeMic}
+                onChange={(e) => setIncludeMic(e.target.checked)}
+                className="accent-primary"
+              />
               Start with microphone on
             </label>
           </div>
 
           <div className="space-y-2">
-            <button
-              type="button"
-              onClick={handleStartSetup}
-              className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
-            >
+            <Button type="button" onClick={handleStartSetup}>
               Choose what to share
-            </button>
-            <p className="text-xs text-gray-500">
+            </Button>
+            <p className="text-xs text-muted-foreground">
               Tip: share a different window, or your whole screen — not this browser tab — to avoid an infinite
               mirror effect (this tab showing itself, recursively).
             </p>
@@ -374,7 +391,8 @@ export default function RecordPage() {
       {stage !== "setup" && (
         <div className="flex items-center justify-between">
           {(stage === "recording" || stage === "paused") && (
-            <span className="font-mono text-lg">
+            <span className="flex items-center gap-2 font-mono text-lg">
+              {stage === "recording" && <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />}
               {minutes}:{seconds}
             </span>
           )}
@@ -383,61 +401,41 @@ export default function RecordPage() {
             {(stage === "live" || stage === "recording" || stage === "paused") && (
               <>
                 {camAvailable && (
-                  <button
-                    type="button"
-                    onClick={toggleCam}
-                    className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium"
-                  >
+                  <Button type="button" variant="outline" onClick={toggleCam}>
                     {camOn ? "Turn camera off" : "Turn camera on"}
-                  </button>
+                  </Button>
                 )}
                 {micAvailable && (
-                  <button
-                    type="button"
-                    onClick={toggleMic}
-                    className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium"
-                  >
+                  <Button type="button" variant="outline" onClick={toggleMic}>
                     {micOn ? "Mute mic" : "Unmute mic"}
-                  </button>
+                  </Button>
                 )}
               </>
             )}
 
             {stage === "live" && (
-              <button
-                type="button"
-                onClick={handleBeginCountdown}
-                className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
-              >
+              <Button type="button" onClick={handleBeginCountdown}>
                 Start recording
-              </button>
+              </Button>
             )}
             {stage === "recording" && (
               <>
-                <button type="button" onClick={handlePause} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium">
+                <Button type="button" variant="outline" onClick={handlePause}>
                   Pause
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleStop()}
-                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white"
-                >
+                </Button>
+                <Button type="button" variant="destructive" onClick={() => void handleStop()}>
                   Stop
-                </button>
+                </Button>
               </>
             )}
             {stage === "paused" && (
               <>
-                <button type="button" onClick={handleResume} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium">
+                <Button type="button" variant="outline" onClick={handleResume}>
                   Resume
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleStop()}
-                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white"
-                >
+                </Button>
+                <Button type="button" variant="destructive" onClick={() => void handleStop()}>
                   Stop
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -445,37 +443,34 @@ export default function RecordPage() {
       )}
 
       {stage === "stopped" && recordingBlob && (
-        <div className="space-y-4 rounded-md border border-gray-200 p-4">
-          <h2 className="text-lg font-medium">Recording finished</h2>
+        <div className="space-y-4 rounded-[1.75rem] border border-border bg-card p-6">
+          <h2 className="font-heading text-lg font-semibold tracking-tight">Recording finished</h2>
 
           <div className="space-y-1">
             <label htmlFor="title" className="text-sm font-medium">
               Title
             </label>
-            <input
+            <Input
               id="title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Untitled recording"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
             />
           </div>
 
+          {saved && <Alert variant="success">Saved to your history.</Alert>}
+
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => void handleSaveRecording()}
-              disabled={saving || saved}
-              className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
+            <Button type="button" onClick={() => void handleSaveRecording()} disabled={saving || saved}>
+              {saving && <Spinner className="h-4 w-4" />}
               {saved ? "Saved ✓" : saving ? "Saving…" : `Download & save (.${fileExtension})`}
-            </button>
-            <button type="button" onClick={handleDiscard} className="rounded-md px-4 py-2 text-sm text-gray-500 underline">
+            </Button>
+            <Button type="button" variant="ghost" onClick={handleDiscard}>
               Discard & record another
-            </button>
+            </Button>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             The video file only downloads to your computer — it&apos;s never uploaded. This saves the file locally
             first, then logs the title/duration/wallpaper to your history.
           </p>

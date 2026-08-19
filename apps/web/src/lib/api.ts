@@ -86,4 +86,6 @@ export const recordingsApi = {
     request<{ recording: Recording }>("/api/v1/recordings", { method: "POST", body: input, token }),
 
   list: (token: string) => request<{ recordings: Recording[] }>("/api/v1/recordings", { token }),
+
+  remove: (id: string, token: string) => request<void>(`/api/v1/recordings/${id}`, { method: "DELETE", token }),
 };
