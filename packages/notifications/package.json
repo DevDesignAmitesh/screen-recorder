@@ -1,0 +1,19 @@
+{
+  "name": "@screen-recorder/notifications",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint . --ext .ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "resend": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.0"
+  }
+}

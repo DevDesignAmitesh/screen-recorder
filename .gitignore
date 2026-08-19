@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# build outputs
+dist/
+build/
+.next/
+out/
+
+# turbo
+.turbo/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# prisma
+packages/db/generated/
+
+# logs
+*.log
+npm-debug.log*
+bun-debug.log*
+
+# editor / os
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+Thumbs.db
+
+# misc
+*.tsbuildinfo
