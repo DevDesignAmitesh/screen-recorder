@@ -2,7 +2,7 @@ name: CD Pipeline for backends
 
 on:
   push:
-    branches: ["main"]
+    branches: ["future"]
 
 jobs:
   deploy:
