@@ -1,13 +1,17 @@
 import cors from "cors";
-import express from "express";
+import express, { type Express } from "express";
 
 import { authRouter } from "./routes/auth.routes.js";
 import { recordingsRouter } from "./routes/recordings.routes.js";
 import { wallpapersRouter } from "./routes/wallpapers.routes.js";
 
-const app = express();
+export const app: Express = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https://screensy.amitesh.work"], 
+  })
+);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -17,9 +21,3 @@ app.get("/health", (_req, res) => {
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/wallpapers", wallpapersRouter);
 app.use("/api/v1/recordings", recordingsRouter);
-
-const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
-
-app.listen(PORT, () => {
-  console.log(`server listening on http://localhost:${PORT}`);
-});
