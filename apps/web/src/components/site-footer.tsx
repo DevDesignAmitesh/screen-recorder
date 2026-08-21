@@ -11,7 +11,7 @@ import { PRODUCT_NAME } from "@/lib/constants";
 
 const EXPLORE_LINKS = [
   { href: "#solution", label: "Solution" },
-  { href: "#demo", label: "Demo" },
+  { href: "#launch", label: "Launch video" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#compare", label: "Compare" },
   { href: "#audience", label: "Who it's for" },

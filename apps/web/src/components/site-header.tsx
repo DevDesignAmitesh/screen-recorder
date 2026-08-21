@@ -12,7 +12,7 @@ import { PRODUCT_NAME } from "@/lib/constants";
 // since these ids don't exist on /login or /signup.
 const SECTION_LINKS = [
   { href: "#solution", label: "Solution" },
-  { href: "#demo", label: "Demo" },
+  { href: "#launch", label: "Launch video" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#compare", label: "Compare" },
   { href: "#audience", label: "Who it's for" },
