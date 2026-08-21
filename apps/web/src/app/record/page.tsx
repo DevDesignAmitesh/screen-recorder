@@ -1,12 +1,26 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  Circle,
+  Download,
+  Mic,
+  MicOff,
+  MonitorUp,
+  Pause,
+  Play,
+  RotateCcw,
+  Square,
+  Video,
+  VideoOff,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { ApiError, recordingsApi, wallpapersApi, type Wallpaper } from "@/lib/api";
@@ -389,6 +403,7 @@ export default function RecordPage() {
 
           <div className="space-y-2">
             <Button type="button" onClick={handleStartSetup} className="w-full sm:w-auto">
+              <MonitorUp className="h-4 w-4" />
               Choose what to share
             </Button>
             <p className="text-xs text-muted-foreground">
@@ -435,46 +450,42 @@ export default function RecordPage() {
             </span>
           )}
 
-          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+          <div className="flex flex-wrap items-center gap-3">
             {(stage === "live" || stage === "recording" || stage === "paused") && (
-              <>
+              <div className="flex items-center gap-2">
                 {camAvailable && (
-                  <Button type="button" variant="outline" onClick={toggleCam} className="w-full sm:w-auto">
-                    {camOn ? "Turn camera off" : "Turn camera on"}
-                  </Button>
+                  <IconButton label={camOn ? "Turn camera off" : "Turn camera on"} onClick={toggleCam}>
+                    {camOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+                  </IconButton>
                 )}
                 {micAvailable && (
-                  <Button type="button" variant="outline" onClick={toggleMic} className="w-full sm:w-auto">
-                    {micOn ? "Mute mic" : "Unmute mic"}
-                  </Button>
+                  <IconButton label={micOn ? "Mute mic" : "Unmute mic"} onClick={toggleMic}>
+                    {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+                  </IconButton>
                 )}
-              </>
+                {stage === "recording" && (
+                  <IconButton label="Pause recording" onClick={handlePause}>
+                    <Pause className="h-5 w-5" />
+                  </IconButton>
+                )}
+                {stage === "paused" && (
+                  <IconButton label="Resume recording" onClick={handleResume}>
+                    <Play className="h-5 w-5" />
+                  </IconButton>
+                )}
+                {(stage === "recording" || stage === "paused") && (
+                  <IconButton label="Stop recording" variant="destructive" onClick={() => void handleStop()}>
+                    <Square className="h-5 w-5" />
+                  </IconButton>
+                )}
+              </div>
             )}
 
             {stage === "live" && (
-              <Button type="button" onClick={handleBeginCountdown} className="col-span-2 w-full sm:w-auto">
+              <Button type="button" onClick={handleBeginCountdown} className="w-full sm:w-auto">
+                <Circle className="h-4 w-4 fill-current" />
                 Start recording
               </Button>
-            )}
-            {stage === "recording" && (
-              <>
-                <Button type="button" variant="outline" onClick={handlePause} className="w-full sm:w-auto">
-                  Pause
-                </Button>
-                <Button type="button" variant="destructive" onClick={() => void handleStop()} className="w-full sm:w-auto">
-                  Stop
-                </Button>
-              </>
-            )}
-            {stage === "paused" && (
-              <>
-                <Button type="button" variant="outline" onClick={handleResume} className="w-full sm:w-auto">
-                  Resume
-                </Button>
-                <Button type="button" variant="destructive" onClick={() => void handleStop()} className="w-full sm:w-auto">
-                  Stop
-                </Button>
-              </>
             )}
           </div>
         </div>
@@ -506,10 +517,11 @@ export default function RecordPage() {
               disabled={saving || saved}
               className="w-full sm:w-auto"
             >
-              {saving && <Spinner className="h-4 w-4" />}
+              {saving ? <Spinner className="h-4 w-4" /> : <Download className="h-4 w-4" />}
               {saved ? "Saved ✓" : saving ? "Saving…" : `Download & save (.${fileExtension})`}
             </Button>
             <Button type="button" variant="ghost" onClick={handleDiscard} className="w-full sm:w-auto">
+              <RotateCcw className="h-4 w-4" />
               Discard & record another
             </Button>
           </div>
