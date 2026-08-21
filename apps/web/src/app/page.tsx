@@ -43,14 +43,19 @@ export default function Home() {
             Screensy composites your face cam and a background wallpaper right into your screen recording, free, in
             your browser. No install, no subscription, no upload.
           </motion.p>
-          <motion.div variants={fadeUp} className="flex flex-wrap justify-center gap-3">
+          <motion.div variants={fadeUp} className="flex flex-wrap items-center justify-center gap-3">
             <Link href={user ? "/dashboard" : "/signup"} className={buttonVariants({ variant: "primary", size: "lg" })}>
               {user ? "Go to dashboard" : "Get started free"}
             </Link>
             {!user && (
-              <Link href="/login" className={buttonVariants({ variant: "outline", size: "lg" })}>
-                Log in
-              </Link>
+              <>
+                <Link href="/try" className={buttonVariants({ variant: "outline", size: "lg" })}>
+                  Try without signing up
+                </Link>
+                {/* <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+                  Log in
+                </Link> */}
+              </>
             )}
           </motion.div>
         </motion.section>

@@ -89,3 +89,14 @@ export const recordingsApi = {
 
   remove: (id: string, token: string) => request<void>(`/api/v1/recordings/${id}`, { method: "DELETE", token }),
 };
+
+/** Anonymous usage tracking for the no-signup /try page — see
+ * lib/device-id.ts. No auth token involved; there's no account here. */
+export const tryApi = {
+  /** Logs a trial recording starting. Rejects with an ApiError (status
+   * 409) if this device already used its one trial. */
+  track: (deviceId: string) => request<{ ok: true }>("/api/v1/try/track", { method: "POST", body: { deviceId } }),
+
+  status: (deviceId: string) =>
+    request<{ alreadyTried: boolean }>(`/api/v1/try/status?deviceId=${encodeURIComponent(deviceId)}`),
+};

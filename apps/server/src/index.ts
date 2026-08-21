@@ -3,6 +3,7 @@ import express, { type Express } from "express";
 
 import { authRouter } from "./routes/auth.routes.js";
 import { recordingsRouter } from "./routes/recordings.routes.js";
+import { tryRouter } from "./routes/try.routes.js";
 import { wallpapersRouter } from "./routes/wallpapers.routes.js";
 
 export const app: Express = express();
@@ -21,3 +22,4 @@ app.get("/health", (_req, res) => {
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/wallpapers", wallpapersRouter);
 app.use("/api/v1/recordings", recordingsRouter);
+app.use("/api/v1/try", tryRouter);

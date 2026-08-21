@@ -64,3 +64,17 @@ model Recording {
 
   @@index([ownerId])
 }
+
+/// One row per trial recording actually started on the no-signup /try
+/// page (see apps/server/src/routes/try.routes.ts) — deliberately not
+/// related to User, since the whole point is it's anonymous. `deviceId`
+/// is a UUID the client generates and persists in localStorage on first
+/// visit, so COUNT(*) gives total attempts and COUNT(DISTINCT deviceId)
+/// gives unique devices, both from this one table.
+model TrialAttempt {
+  id        String   @id @default(cuid())
+  deviceId  String
+  createdAt DateTime @default(now())
+
+  @@index([deviceId])
+}

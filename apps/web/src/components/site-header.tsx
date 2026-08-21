@@ -60,6 +60,12 @@ export function SiteHeader() {
               </Link>
             ) : (
               <>
+                {/* <Link
+                  href="/try"
+                  className="hidden rounded-full px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-primary/8 hover:text-primary sm:inline-block"
+                >
+                  Try it free
+                </Link> */}
                 <Link href="/login" className="rounded-full px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-primary/8 hover:text-primary">
                   Log in
                 </Link>
