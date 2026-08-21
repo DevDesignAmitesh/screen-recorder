@@ -12,6 +12,16 @@ const DEFAULT_WALLPAPERS = [
   { name: "Violet", url: "/wallpapers/violet.svg" },
   { name: "Forest", url: "/wallpapers/forest.svg" },
   { name: "Midnight", url: "/wallpapers/midnight.svg" },
+  { name: "Rose", url: "/wallpapers/rose.svg" },
+  { name: "Amber", url: "/wallpapers/amber.svg" },
+  { name: "Mint", url: "/wallpapers/mint.svg" },
+  { name: "Lavender", url: "/wallpapers/lavender.svg" },
+  { name: "Slate", url: "/wallpapers/slate.svg" },
+  { name: "Coral", url: "/wallpapers/coral.svg" },
+  { name: "Teal", url: "/wallpapers/teal.svg" },
+  { name: "Peach", url: "/wallpapers/peach.svg" },
+  { name: "Charcoal", url: "/wallpapers/charcoal.svg" },
+  { name: "Aurora", url: "/wallpapers/aurora.svg" },
 ];
 
 async function main() {

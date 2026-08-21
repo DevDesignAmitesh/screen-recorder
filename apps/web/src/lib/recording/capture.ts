@@ -11,6 +11,18 @@ export interface CaptureStreams {
 }
 
 export async function startCapture(): Promise<CaptureStreams> {
+  // Screen capture (getDisplayMedia) isn't implemented at all on most
+  // mobile browsers (iOS Safari, and most Android browsers) — it's a
+  // platform limitation, not something we can feature-test our way around
+  // once the call is already made. Check up front and fail with a message
+  // that actually explains what's going on, instead of letting a raw
+  // "getDisplayMedia is not a function" TypeError bubble up to the UI.
+  if (typeof navigator.mediaDevices?.getDisplayMedia !== "function") {
+    throw new Error(
+      "Screen recording isn't supported on this browser or device. Try a desktop browser like Chrome or Edge."
+    );
+  }
+
   // `displaySurface: "monitor"` is a hint some browsers use to default the
   // share picker to "Entire Screen" instead of a tab/window — it reduces
   // (doesn't guarantee against) users accidentally sharing the very tab

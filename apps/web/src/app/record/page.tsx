@@ -30,6 +30,7 @@ export default function RecordPage() {
 
   const [stage, setStage] = useState<Stage>("setup");
   const [wallpapers, setWallpapers] = useState<Wallpaper[]>([]);
+  const [wallpapersLoading, setWallpapersLoading] = useState(true);
   const [selectedWallpaperId, setSelectedWallpaperId] = useState<string | null>(null);
   const [includeWebcam, setIncludeWebcam] = useState(true);
   const [includeMic, setIncludeMic] = useState(true);
@@ -92,7 +93,8 @@ export default function RecordPage() {
         setWallpapers(wallpapers);
         setSelectedWallpaperId((current) => current ?? wallpapers[0]?.id ?? null);
       })
-      .catch(() => setError("Couldn't load wallpapers"));
+      .catch(() => setError("Couldn't load wallpapers"))
+      .finally(() => setWallpapersLoading(false));
   }, []);
 
   // Belt-and-braces cleanup if the user navigates away mid-session.
@@ -286,6 +288,8 @@ export default function RecordPage() {
         token
       );
       setSaved(true);
+      // Brief pause so "Saved ✓" is actually visible before navigating away.
+      setTimeout(() => router.push("/dashboard"), 900);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't save recording");
     } finally {
@@ -314,7 +318,7 @@ export default function RecordPage() {
   const seconds = String(elapsedSeconds % 60).padStart(2, "0");
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6">
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-4 sm:p-6">
       <Link href="/dashboard" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" />
         Dashboard
@@ -333,30 +337,36 @@ export default function RecordPage() {
         <div className="space-y-6">
           <div className="space-y-2">
             <p className="text-sm font-medium">Wallpaper</p>
-            <div className="grid grid-cols-5 gap-3">
-              {wallpapers.map((wallpaper) => (
-                <button
-                  key={wallpaper.id}
-                  type="button"
-                  onClick={() => setSelectedWallpaperId(wallpaper.id)}
-                  className={`relative aspect-video rounded-lg bg-cover bg-center ring-2 ring-offset-2 ring-offset-background transition ${
-                    selectedWallpaperId === wallpaper.id ? "ring-primary" : "ring-transparent hover:ring-border"
-                  }`}
-                  style={{ backgroundImage: `url(${wallpaper.url})` }}
-                  aria-label={wallpaper.name}
-                  aria-pressed={selectedWallpaperId === wallpaper.id}
-                >
-                  {selectedWallpaperId === wallpaper.id && (
-                    <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-                      ✓
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            {wallpapersLoading ? (
+              <div className="flex justify-center py-8">
+                <Spinner className="h-5 w-5 text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+                {wallpapers.map((wallpaper) => (
+                  <button
+                    key={wallpaper.id}
+                    type="button"
+                    onClick={() => setSelectedWallpaperId(wallpaper.id)}
+                    className={`relative aspect-video rounded-lg bg-cover bg-center ring-2 ring-offset-2 ring-offset-background transition ${
+                      selectedWallpaperId === wallpaper.id ? "ring-primary" : "ring-transparent hover:ring-border"
+                    }`}
+                    style={{ backgroundImage: `url(${wallpaper.url})` }}
+                    aria-label={wallpaper.name}
+                    aria-pressed={selectedWallpaperId === wallpaper.id}
+                  >
+                    {selectedWallpaperId === wallpaper.id && (
+                      <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -378,7 +388,7 @@ export default function RecordPage() {
           </div>
 
           <div className="space-y-2">
-            <Button type="button" onClick={handleStartSetup}>
+            <Button type="button" onClick={handleStartSetup} className="w-full sm:w-auto">
               Choose what to share
             </Button>
             <p className="text-xs text-muted-foreground">
@@ -405,8 +415,8 @@ export default function RecordPage() {
       </div>
 
       {stage === "live" && (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-[1.75rem] border border-border bg-card p-4">
-          <p className="col-span-2 text-sm font-medium">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-[1.75rem] border border-border bg-card p-4 sm:grid-cols-2">
+          <p className="col-span-1 text-sm font-medium sm:col-span-2">
             Crop out a taskbar or tab bar <span className="font-normal text-muted-foreground">(if it's showing)</span>
           </p>
           <CropSlider label="Top" value={cropTop} onChange={setCropTop} />
@@ -417,7 +427,7 @@ export default function RecordPage() {
       )}
 
       {stage !== "setup" && (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {(stage === "recording" || stage === "paused") && (
             <span className="flex items-center gap-2 font-mono text-lg">
               {stage === "recording" && <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />}
@@ -425,16 +435,16 @@ export default function RecordPage() {
             </span>
           )}
 
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
             {(stage === "live" || stage === "recording" || stage === "paused") && (
               <>
                 {camAvailable && (
-                  <Button type="button" variant="outline" onClick={toggleCam}>
+                  <Button type="button" variant="outline" onClick={toggleCam} className="w-full sm:w-auto">
                     {camOn ? "Turn camera off" : "Turn camera on"}
                   </Button>
                 )}
                 {micAvailable && (
-                  <Button type="button" variant="outline" onClick={toggleMic}>
+                  <Button type="button" variant="outline" onClick={toggleMic} className="w-full sm:w-auto">
                     {micOn ? "Mute mic" : "Unmute mic"}
                   </Button>
                 )}
@@ -442,26 +452,26 @@ export default function RecordPage() {
             )}
 
             {stage === "live" && (
-              <Button type="button" onClick={handleBeginCountdown}>
+              <Button type="button" onClick={handleBeginCountdown} className="col-span-2 w-full sm:w-auto">
                 Start recording
               </Button>
             )}
             {stage === "recording" && (
               <>
-                <Button type="button" variant="outline" onClick={handlePause}>
+                <Button type="button" variant="outline" onClick={handlePause} className="w-full sm:w-auto">
                   Pause
                 </Button>
-                <Button type="button" variant="destructive" onClick={() => void handleStop()}>
+                <Button type="button" variant="destructive" onClick={() => void handleStop()} className="w-full sm:w-auto">
                   Stop
                 </Button>
               </>
             )}
             {stage === "paused" && (
               <>
-                <Button type="button" variant="outline" onClick={handleResume}>
+                <Button type="button" variant="outline" onClick={handleResume} className="w-full sm:w-auto">
                   Resume
                 </Button>
-                <Button type="button" variant="destructive" onClick={() => void handleStop()}>
+                <Button type="button" variant="destructive" onClick={() => void handleStop()} className="w-full sm:w-auto">
                   Stop
                 </Button>
               </>
@@ -489,12 +499,17 @@ export default function RecordPage() {
 
           {saved && <Alert variant="success">Saved to your history.</Alert>}
 
-          <div className="flex flex-wrap gap-3">
-            <Button type="button" onClick={() => void handleSaveRecording()} disabled={saving || saved}>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button
+              type="button"
+              onClick={() => void handleSaveRecording()}
+              disabled={saving || saved}
+              className="w-full sm:w-auto"
+            >
               {saving && <Spinner className="h-4 w-4" />}
               {saved ? "Saved ✓" : saving ? "Saving…" : `Download & save (.${fileExtension})`}
             </Button>
-            <Button type="button" variant="ghost" onClick={handleDiscard}>
+            <Button type="button" variant="ghost" onClick={handleDiscard} className="w-full sm:w-auto">
               Discard & record another
             </Button>
           </div>

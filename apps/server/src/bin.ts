@@ -5,11 +5,15 @@ import { app } from "./index.js";
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
 const cpusLength = os.cpus().length
 
-if (cluster.isPrimary) {
-  for (let i = 0; i <= cpusLength; i++) {
-    cluster.fork();
-  }
-  cluster.on("exit", () => cluster.fork());
+if (process.env.NODE_ENV === "development") {
+  app.listen(PORT, () => console.log("code is running at ", PORT));
 } else {
-  app.listen(PORT, "0.0.0.0", () => console.log("code is running at ", PORT));
+  if (cluster.isPrimary) {
+    for (let i = 0; i <= cpusLength; i++) {
+      cluster.fork();
+    }
+    cluster.on("exit", () => cluster.fork());
+  } else {
+    app.listen(PORT, () => console.log("code is running at ", PORT));
+  }
 }

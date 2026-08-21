@@ -3,22 +3,31 @@
 import { loginSchema } from "@screen-recorder/common";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SiteHeader } from "@/components/site-header";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { ApiError, authApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setSession } = useAuth();
+  const { user, loading, setSession } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Already signed in (a stored token resolved via /me) — this page is for
+  // logging in, so bounce straight to the dashboard instead of showing the form.
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/dashboard");
+    }
+  }, [loading, user, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +49,17 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (loading || user) {
+    return (
+      <>
+        <SiteHeader />
+        <main className="flex flex-1 items-center justify-center px-6 pb-6 pt-28">
+          <Spinner className="h-6 w-6 text-muted-foreground" />
+        </main>
+      </>
+    );
   }
 
   return (

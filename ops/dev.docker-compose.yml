@@ -9,26 +9,26 @@ services:
       - 5432:5432
 
 
-  client:
-    build:
-      context: ..
-      dockerfile: ./ops/client.dockerfile
-    ports:
-      - 3000:3000
-    environment:
-      - NEXT_PUBLIC_NODE_ENV=production
-    depends_on:
-      - http
+  # client:
+  #   build:
+  #     context: ..
+  #     dockerfile: ./ops/client.dockerfile
+  #   ports:
+  #     - 3000:3000
+  #   environment:
+  #     - NEXT_PUBLIC_NODE_ENV=production
+  #   depends_on:
+  #     - http
 
 
-  http:
-    build:
-      context: ..
-      dockerfile: ./ops/http.dockerfile
-    ports:
-      - 4000:4000
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/screen_recorder
-      - JWT_SECRET=anannana_a9a0a0a
-    depends_on:
-      - postgres
+  # http:
+  #   build:
+  #     context: ..
+  #     dockerfile: ./ops/http.dockerfile
+  #   ports:
+  #     - 4000:4000
+  #   environment:
+  #     - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/screen_recorder
+  #     - JWT_SECRET=anannana_a9a0a0a
+  #   depends_on:
+  #     - postgres

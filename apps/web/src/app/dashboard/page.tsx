@@ -1,9 +1,9 @@
 "use client";
 
-import { Clapperboard, Film, Trash2, Video } from "lucide-react";
+import { Clapperboard, Film, LogOut, Trash2, User, Video } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
@@ -20,6 +20,8 @@ export default function DashboardPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -35,6 +37,25 @@ export default function DashboardPage() {
       .catch(() => setError("Couldn't load your recordings"))
       .finally(() => setHistoryLoading(false));
   }, [token]);
+
+  // Close the profile dropdown on an outside click or Escape.
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setProfileMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [profileMenuOpen]);
 
   async function handleDelete(id: string) {
     if (!token) return;
@@ -62,30 +83,49 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-1 flex-col">
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
           <Link href="/" className="flex items-center gap-2 font-heading font-semibold tracking-tight">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Clapperboard className="h-4 w-4" />
             </span>
-            {PRODUCT_NAME}
+            <span className="hidden sm:inline">{PRODUCT_NAME}</span>
           </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
+
+          <div ref={profileMenuRef} className="relative">
             <button
               type="button"
-              onClick={() => {
-                logout();
-                router.push("/login");
-              }}
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              onClick={() => setProfileMenuOpen((open) => !open)}
+              aria-label="Account menu"
+              aria-expanded={profileMenuOpen}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
             >
-              Log out
+              <User className="h-4 w-4" />
             </button>
+
+            {profileMenuOpen && (
+              <div className="absolute right-0 top-full z-10 mt-2 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
+                <div className="border-b border-border px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Signed in as</p>
+                  <p className="truncate text-sm font-medium">{user.email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    router.push("/login");
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="relative flex-1 px-6 py-10">
+      <main className="relative flex-1 px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-5xl space-y-8 pb-20">
           {!historyLoading && recordings.length > 0 && (
             <h1 className="font-heading text-xl font-semibold tracking-tight">Your recordings</h1>
@@ -152,7 +192,7 @@ export default function DashboardPage() {
             empty state above already has its own "Start recording" CTA,
             so this one would just be a redundant second button. */}
         {!historyLoading && recordings.length > 0 && (
-          <div className="pointer-events-none fixed inset-x-0 bottom-6 flex justify-center px-6">
+          <div className="pointer-events-none fixed inset-x-0 bottom-6 flex justify-center px-4 sm:px-6">
             <div className="flex w-full max-w-5xl justify-end">
               <Link
                 href="/record"
