@@ -88,4 +88,44 @@ export const recordingsApi = {
   list: (token: string) => request<{ recordings: Recording[] }>("/api/v1/recordings", { token }),
 
   remove: (id: string, token: string) => request<void>(`/api/v1/recordings/${id}`, { method: "DELETE", token }),
+
+  streamStart: (mimeType: string, token: string) =>
+    request<{ sessionId: string }>("/api/v1/recordings/stream/start", { method: "POST", body: { mimeType }, token }),
+
+  /** Raw binary POST — bypasses `request()`'s JSON body/parsing since this
+   * is a chunk of video, not JSON. Rejects with an `ApiError` whose
+   * message is the server's reject reason (e.g. "size-limit") on a
+   * non-2xx, so callers can distinguish a hit-the-cap rejection from a
+   * transient network failure. */
+  streamChunk: async (sessionId: string, sequence: number, chunk: Blob, token: string): Promise<void> => {
+    const res = await fetch(`${API_URL}/api/v1/recordings/stream/${sessionId}/chunk`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "X-Chunk-Sequence": String(sequence),
+        Authorization: `Bearer ${token}`,
+      },
+      body: chunk,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error ?? "Chunk upload failed", res.status);
+    }
+  },
+
+  streamFinish: (sessionId: string, token: string) =>
+    request<{ ok: true }>(`/api/v1/recordings/stream/${sessionId}/finish`, { method: "POST", token }),
+
+  /** Returns the raw Response so the caller can read it as a Blob and
+   * inspect headers — not run through `request()`'s JSON parsing. */
+  streamDownload: async (sessionId: string, token: string): Promise<Response> => {
+    const res = await fetch(`${API_URL}/api/v1/recordings/stream/${sessionId}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error ?? "Download failed", res.status);
+    }
+    return res;
+  },
 };

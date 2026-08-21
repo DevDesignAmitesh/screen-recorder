@@ -2,6 +2,7 @@ import cors from "cors";
 import express, { type Express } from "express";
 
 import { authRouter } from "./routes/auth.routes.js";
+import { recordingStreamRouter } from "./routes/recording-stream.routes.js";
 import { recordingsRouter } from "./routes/recordings.routes.js";
 import { wallpapersRouter } from "./routes/wallpapers.routes.js";
 
@@ -20,4 +21,5 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/wallpapers", wallpapersRouter);
+app.use("/api/v1/recordings/stream", recordingStreamRouter);
 app.use("/api/v1/recordings", recordingsRouter);

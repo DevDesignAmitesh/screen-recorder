@@ -27,7 +27,7 @@ import { ApiError, recordingsApi, wallpapersApi, type Wallpaper } from "@/lib/ap
 import { useAuth } from "@/lib/auth-context";
 import { startCapture, stopStream, type CaptureStreams } from "@/lib/recording/capture";
 import { Compositor } from "@/lib/recording/compositor";
-import { createRecorder, type RecorderHandle } from "@/lib/recording/recorder";
+import { createRecorder, type CapReason, type RecorderHandle, type StopResult } from "@/lib/recording/recorder";
 
 // Internal render resolution for the composited canvas — fixed regardless
 // of the actual screen resolution being shared (see compositor.ts). 16:9
@@ -62,7 +62,7 @@ export default function RecordPage() {
   const [countdown, setCountdown] = useState(3);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
+  const [recordingResult, setRecordingResult] = useState<StopResult | null>(null);
   const [finalDurationSeconds, setFinalDurationSeconds] = useState(0);
   const [fileExtension, setFileExtension] = useState<"mp4" | "webm">("webm");
   const [title, setTitle] = useState("");
@@ -214,18 +214,41 @@ export default function RecordPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, countdown]);
 
+  /** Hit the server-side size/time cap mid-recording — force-stop right
+   * there rather than trying to reassemble a local/server hybrid. */
+  function handleCapped(reason: CapReason) {
+    setError(
+      reason === "time-limit"
+        ? "Reached the 10-minute recording limit — stopped and saved what was recorded so far."
+        : "Reached the recording size limit — stopped and saved what was recorded so far."
+    );
+    void handleStop();
+  }
+
   function beginRecording() {
     if (!canvasRef.current) return;
-    const recorder = createRecorder(canvasRef.current, streamsRef.current?.micStream ?? null);
+    const recorder = createRecorder(canvasRef.current, streamsRef.current?.micStream ?? null, token, handleCapped);
     setFileExtension(recorder.fileExtension);
-    recorder.start();
     recorderRef.current = recorder;
+    // react-hooks/purity flags this Date.now() because the function below
+    // contains an async continuation (recorder.start().then(...)) — the
+    // compiler conservatively treats that as "could resume during a
+    // render". It can't: this whole function only ever runs once, in
+    // response to the user-initiated countdown finishing (see the effect
+    // above), never during a render pass.
+    // eslint-disable-next-line react-hooks/purity
     recordStartRef.current = Date.now();
     pausedMsRef.current = 0;
     pauseStartedRef.current = null;
     setElapsedSeconds(0);
-    timerRef.current = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-    setStage("recording");
+    // recorder.start() awaits the server-side session handshake before it
+    // actually starts the underlying MediaRecorder — stage flips to
+    // "recording" (which is what makes Pause/Stop clickable) only once
+    // that's actually done, not while it's still in flight.
+    void recorder.start().then(() => {
+      timerRef.current = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
+      setStage("recording");
+    });
   }
 
   function handlePause() {
@@ -262,7 +285,7 @@ export default function RecordPage() {
     const durationMs = recordStartRef.current ? Date.now() - recordStartRef.current - pausedMs : elapsedSeconds * 1000;
     setFinalDurationSeconds(Math.max(0, Math.round(durationMs / 1000)));
 
-    const blob = recorderRef.current ? await recorderRef.current.stop() : null;
+    const result = recorderRef.current ? await recorderRef.current.stop() : null;
 
     stopStream(streamsRef.current?.screenStream);
     stopStream(streamsRef.current?.webcamStream);
@@ -270,8 +293,8 @@ export default function RecordPage() {
 
     stoppingRef.current = false;
 
-    if (blob) {
-      setRecordingBlob(blob);
+    if (result) {
+      setRecordingResult(result);
       setStage("stopped");
     } else {
       setStage("setup");
@@ -280,13 +303,24 @@ export default function RecordPage() {
 
   /** Downloads the file locally, then logs the metadata — always in that
    * order, so a history entry never exists without the user actually
-   * having the video. */
+   * having the video. If the recording streamed to the server, this
+   * fetches it back and the server deletes its copy once that request
+   * finishes; otherwise it's the local Blob that's been sitting in the
+   * browser the whole time. */
   async function handleSaveRecording() {
-    if (!recordingBlob || !token) return;
+    if (!recordingResult || !token) return;
     setSaving(true);
     setError(null);
     try {
-      const url = URL.createObjectURL(recordingBlob);
+      let blob: Blob;
+      if (recordingResult.source === "local") {
+        blob = recordingResult.blob;
+      } else {
+        const response = await recordingsApi.streamDownload(recordingResult.sessionId, token);
+        blob = await response.blob();
+      }
+
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `${title.trim() || "recording"}.${fileExtension}`;
@@ -312,7 +346,7 @@ export default function RecordPage() {
   }
 
   function handleDiscard() {
-    setRecordingBlob(null);
+    setRecordingResult(null);
     setTitle("");
     setSaved(false);
     setElapsedSeconds(0);
@@ -491,7 +525,7 @@ export default function RecordPage() {
         </div>
       )}
 
-      {stage === "stopped" && recordingBlob && (
+      {stage === "stopped" && recordingResult && (
         <div className="space-y-4 rounded-[1.75rem] border border-border bg-card p-6">
           <h2 className="font-heading text-lg font-semibold tracking-tight">Recording finished</h2>
 
