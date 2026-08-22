@@ -45,7 +45,21 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${outfit.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-background text-foreground">
+        {/* Unused by the current no-auth flow (nothing calls setSession
+            anymore now that /login and /signup are unrouted) — left in
+            place, harmless, so auth is a one-line restore if it comes back. */}
         <AuthProvider>{children}</AuthProvider>
+
+        <footer className="flex justify-center py-6">
+          <a
+            href="https://amitesh.work"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            built with 💖 by Amitesh
+          </a>
+        </footer>
       </body>
     </html>
   );

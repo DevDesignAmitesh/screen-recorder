@@ -90,13 +90,15 @@ export const recordingsApi = {
   remove: (id: string, token: string) => request<void>(`/api/v1/recordings/${id}`, { method: "DELETE", token }),
 };
 
-/** Anonymous usage tracking for the no-signup /try page — see
- * lib/device-id.ts. No auth token involved; there's no account here. */
+/** Anonymous per-device recording tracking — see lib/device-id.ts. No
+ * auth token involved; there's no account here. Originally gated the old
+ * one-trial /try page (a 409 meant "already used your trial"); now it's
+ * pure counting called after every finished recording on the main page,
+ * and never rejects on a repeat deviceId — see try.routes.ts. */
 export const tryApi = {
-  /** Logs a trial recording starting. Rejects with an ApiError (status
-   * 409) if this device already used its one trial. */
+  /** Logs one finished recording for this device. */
   track: (deviceId: string) => request<{ ok: true }>("/api/v1/try/track", { method: "POST", body: { deviceId } }),
 
-  status: (deviceId: string) =>
-    request<{ alreadyTried: boolean }>(`/api/v1/try/status?deviceId=${encodeURIComponent(deviceId)}`),
+  /** How many recordings this device has logged. */
+  status: (deviceId: string) => request<{ count: number }>(`/api/v1/try/status?deviceId=${encodeURIComponent(deviceId)}`),
 };

@@ -107,9 +107,12 @@ export default function TryPage() {
   // screen-share picker. Fails open (assume not-yet-tried) on a network
   // error — a tracking hiccup shouldn't block a legitimate first try.
   useEffect(() => {
+    // try.routes.ts's /status now returns a count, not the old
+    // alreadyTried boolean (see api.ts) — adapted here only to keep this
+    // unrouted reference page type-checking, not a functional change.
     tryApi
       .status(getDeviceId())
-      .then(({ alreadyTried }) => setAlreadyTried(alreadyTried))
+      .then(({ count }) => setAlreadyTried(count > 0))
       .catch(() => setAlreadyTried(false));
   }, []);
 

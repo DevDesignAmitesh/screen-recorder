@@ -190,6 +190,21 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
     setMicOn(next);
   }
 
+  /** Backs out of the "live" preview (screen shared, not recording yet)
+   * back to setup — e.g. to pick a different wallpaper or re-share a
+   * different window. Unlike resetToSetup (which only clears recording
+   * state after a stop), this actually tears down the in-progress capture
+   * streams and compositor, since nothing else has stopped them yet. */
+  function handleCancelLive() {
+    compositorRef.current?.stop();
+    stopStream(streamsRef.current?.screenStream);
+    stopStream(streamsRef.current?.webcamStream);
+    stopStream(streamsRef.current?.micStream);
+    compositorRef.current = null;
+    streamsRef.current = null;
+    setStage("setup");
+  }
+
   function handleBeginCountdown() {
     setCountdown(3);
     setStage("countdown");
@@ -348,6 +363,7 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
     webcamVideoRef,
     handleStartSetup,
     handleBeginCountdown,
+    handleCancelLive,
     handlePause,
     handleResume,
     handleStop,
