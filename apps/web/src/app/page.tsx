@@ -2,7 +2,7 @@
 
 import { Download, RotateCcw, Undo2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CapturePreview } from "@/components/recording/capture-preview";
 import { CaptureSetupPanel } from "@/components/recording/capture-setup-panel";
@@ -44,6 +44,12 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function Home() {
   const [downloadedFilename, setDownloadedFilename] = useState<string | null>(null);
+  // Playback preview for the "stopped" panel — an object URL onto the
+  // finished blob, same pattern as _try/page.tsx's watch-only flow. Kept
+  // in a ref alongside the state so cleanup (unmount/discard) can revoke
+  // the latest URL without stale-closure issues.
+  const videoUrlRef = useRef<string | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   const {
     stage,
@@ -93,8 +99,19 @@ export default function Home() {
       downloadBlob(blob, filename);
       setDownloadedFilename(filename);
       void tryApi.track(getDeviceId()).catch(() => {});
+
+      const url = URL.createObjectURL(blob);
+      videoUrlRef.current = url;
+      setVideoUrl(url);
     },
   });
+
+  // Revoke the object URL whenever it's replaced or the page unmounts.
+  useEffect(() => {
+    return () => {
+      if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+    };
+  }, []);
 
   function handleDownloadAgain() {
     if (!recordingBlob || !downloadedFilename) return;
@@ -102,6 +119,9 @@ export default function Home() {
   }
 
   function handleDiscard() {
+    if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
+    videoUrlRef.current = null;
+    setVideoUrl(null);
     resetToSetup();
     setDownloadedFilename(null);
   }
@@ -150,6 +170,7 @@ export default function Home() {
         countdown={countdown}
         showCountdown={stage === "countdown"}
         hidden={stage === "setup"}
+        playbackUrl={stage === "stopped" ? videoUrl : null}
       />
 
       {stage === "live" && (

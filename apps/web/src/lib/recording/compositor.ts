@@ -277,6 +277,19 @@ function drawCoverCropped(
   const sh = source.videoHeight;
   if (!sw || !sh) return;
 
+  // Fixed cover-fit scale from the FULL, uncropped source — deliberately
+  // NOT recomputed from the cropped dimensions below. Deriving scale from
+  // the shrunken srcW/srcH would couple the two axes: trimming only the
+  // top/bottom raises h/srcH, which raises scale for width too, causing
+  // an unrequested zoom that also clips the left/right edges (and
+  // symmetrically for a left/right-only crop). Keeping scale fixed means
+  // a crop only ever removes source pixels — it never re-zooms the rest.
+  const scale = Math.max(w / sw, h / sh);
+  const fullDw = sw * scale;
+  const fullDh = sh * scale;
+  const fullDx = x + (w - fullDw) / 2;
+  const fullDy = y + (h - fullDh) / 2;
+
   const cropLeftPx = sw * clamp01(crop.left);
   const cropRightPx = sw * clamp01(crop.right);
   const cropTopPx = sh * clamp01(crop.top);
@@ -284,10 +297,17 @@ function drawCoverCropped(
   const srcW = Math.max(1, sw - cropLeftPx - cropRightPx);
   const srcH = Math.max(1, sh - cropTopPx - cropBottomPx);
 
-  const scale = Math.max(w / srcW, h / srcH);
-  const dw = srcW * scale;
-  const dh = srcH * scale;
-  ctx.drawImage(source, cropLeftPx, cropTopPx, srcW, srcH, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  ctx.drawImage(
+    source,
+    cropLeftPx,
+    cropTopPx,
+    srcW,
+    srcH,
+    fullDx + cropLeftPx * scale,
+    fullDy + cropTopPx * scale,
+    srcW * scale,
+    srcH * scale
+  );
 }
 
 function clamp01(n: number): number {
