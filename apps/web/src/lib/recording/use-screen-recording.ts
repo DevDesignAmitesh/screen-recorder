@@ -8,12 +8,30 @@
 // and after it stops (record: save-to-account; try: watch-only) — both
 // handled via the options below and the returned `recordingBlob` /
 // `finalDurationSeconds`, letting each page own its own "stopped" UI.
+//
+// The compositor is created once, on mount, and lives for the whole
+// session rather than being built when the screen share starts. That's
+// what makes the setup-stage preview possible: with no screen or webcam
+// video attached it draws the chosen wallpaper, a "your screen goes
+// here" placeholder, and (via the tap-to-adjust overlay, not a real
+// video feed) an outline of where the face cam will sit — so the
+// wallpaper and face-frame choices can be seen before committing to
+// anything. Neither the camera nor the screen is ever requested until
+// "Choose what to share" is clicked; startCapture asks for both together
+// and attaches the real videos to the already-running compositor.
 
 import { useEffect, useRef, useState } from "react";
 
 import { wallpapersApi, type Wallpaper } from "@/lib/api";
 import { startCapture, stopStream, type CaptureStreams } from "@/lib/recording/capture";
 import { Compositor } from "@/lib/recording/compositor";
+import {
+  clampFaceFramePosition,
+  DEFAULT_FACE_FRAME,
+  loadFaceFrame,
+  saveFaceFrame,
+  type FaceFrame,
+} from "@/lib/recording/face-frame";
 import { createRecorder, type RecorderHandle } from "@/lib/recording/recorder";
 
 // Internal render resolution for the composited canvas — fixed regardless
@@ -62,6 +80,10 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
   const [cropBottom, setCropBottom] = useState(0);
   const [cropLeft, setCropLeft] = useState(0);
   const [cropRight, setCropRight] = useState(0);
+  // Width/height/corner-rounding/position of the face-cam overlay,
+  // restored from localStorage on mount (see face-frame.ts) — applies to
+  // the setup preview and to the recorded output alike.
+  const [faceFrame, setFaceFrameState] = useState<FaceFrame>(DEFAULT_FACE_FRAME);
   const [countdown, setCountdown] = useState(3);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -86,11 +108,35 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
   const pausedMsRef = useRef(0);
   const pauseStartedRef = useRef<number | null>(null);
 
-  // Live-updates the compositor whenever a crop slider moves (compositor
-  // only exists once handleStartSetup has run).
+  // One compositor for the whole session, built as soon as the canvas is
+  // mounted — see the file header. Declared before the effects that push
+  // wallpaper/crop/face-frame into it so those land on first render too.
+  useEffect(() => {
+    if (!canvasRef.current || compositorRef.current) return;
+    const compositor = new Compositor(canvasRef.current, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
+    compositor.start();
+    compositorRef.current = compositor;
+  }, []);
+
+  // Live-updates the compositor whenever a crop slider moves.
   useEffect(() => {
     compositorRef.current?.setScreenCrop({ top: cropTop, bottom: cropBottom, left: cropLeft, right: cropRight });
   }, [cropTop, cropBottom, cropLeft, cropRight]);
+
+  // Same for the face frame — so resizing/reshaping it, or nudging its
+  // position via the tap-to-adjust overlay, updates the canvas immediately.
+  useEffect(() => {
+    compositorRef.current?.setFaceFrame(faceFrame);
+  }, [faceFrame]);
+
+  // Restore the saved frame after mount rather than in a useState
+  // initialiser: localStorage doesn't exist during SSR, and seeding it
+  // lazily on the client only would make the server and client markup
+  // disagree on the controls' rendered values.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFaceFrameState(clampFaceFramePosition(loadFaceFrame()));
+  }, []);
 
   useEffect(() => {
     wallpapersApi
@@ -107,6 +153,7 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
   useEffect(() => {
     return () => {
       compositorRef.current?.stop();
+      compositorRef.current = null;
       stopStream(streamsRef.current?.screenStream);
       stopStream(streamsRef.current?.webcamStream);
       stopStream(streamsRef.current?.micStream);
@@ -115,10 +162,51 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
   }, []);
 
   const selectedWallpaper = wallpapers.find((w) => w.id === selectedWallpaperId) ?? null;
+  const selectedWallpaperUrl = selectedWallpaper?.url ?? null;
+
+  // Push the chosen wallpaper into the compositor as soon as it changes,
+  // rather than only when the share starts — that's what makes clicking
+  // through the wallpaper grid update the preview live. The Image is
+  // handed over immediately and drawn once `complete` flips (the
+  // compositor already no-ops on a not-yet-loaded image).
+  useEffect(() => {
+    if (!selectedWallpaperUrl) {
+      compositorRef.current?.setWallpaper(null);
+      return;
+    }
+    const img = new window.Image();
+    img.src = selectedWallpaperUrl;
+    compositorRef.current?.setWallpaper(img);
+  }, [selectedWallpaperUrl]);
+
+  /** Updates the face frame and persists it, keeping it fully on-canvas. */
+  function setFaceFrame(next: FaceFrame) {
+    const clamped = clampFaceFramePosition(next);
+    setFaceFrameState(clamped);
+    saveFaceFrame(clamped);
+  }
+
+  /** Detaches every live media source from the compositor and the hidden
+   * <video> elements, leaving the compositor itself running so it falls
+   * back to the setup preview (wallpaper + screen placeholder). */
+  function releaseCapture() {
+    stopStream(streamsRef.current?.screenStream);
+    stopStream(streamsRef.current?.webcamStream);
+    stopStream(streamsRef.current?.micStream);
+    streamsRef.current = null;
+    if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
+    if (webcamVideoRef.current) webcamVideoRef.current.srcObject = null;
+    compositorRef.current?.setScreenVideo(null);
+    compositorRef.current?.setWebcamVideo(null);
+  }
 
   async function handleStartSetup() {
     setError(null);
     try {
+      // Screen + camera + mic permission is asked for right here, all at
+      // once — never earlier. Nothing before this point (picking a
+      // wallpaper, sizing the face frame) touches getUserMedia/
+      // getDisplayMedia at all.
       const streams = await startCapture();
       streamsRef.current = streams;
 
@@ -155,17 +243,14 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
         void handleStop();
       });
 
-      if (!canvasRef.current) return;
-      const compositor = new Compositor(canvasRef.current, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT });
+      // The compositor has been running since mount (wallpaper + face
+      // frame already applied) — the share just attaches the real screen
+      // and webcam video for the first time.
+      const compositor = compositorRef.current;
+      if (!compositor) return;
       compositor.setScreenVideo(screenVideoRef.current);
       compositor.setWebcamVideo(camIsAvailable && includeWebcam ? webcamVideoRef.current : null);
-      if (selectedWallpaper) {
-        const img = new window.Image();
-        img.src = selectedWallpaper.url;
-        compositor.setWallpaper(img);
-      }
       compositor.start();
-      compositorRef.current = compositor;
 
       setStage("live");
     } catch (err) {
@@ -194,14 +279,10 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
    * back to setup — e.g. to pick a different wallpaper or re-share a
    * different window. Unlike resetToSetup (which only clears recording
    * state after a stop), this actually tears down the in-progress capture
-   * streams and compositor, since nothing else has stopped them yet. */
+   * streams, since nothing else has stopped them yet. The compositor
+   * keeps running and falls back to the setup preview. */
   function handleCancelLive() {
-    compositorRef.current?.stop();
-    stopStream(streamsRef.current?.screenStream);
-    stopStream(streamsRef.current?.webcamStream);
-    stopStream(streamsRef.current?.micStream);
-    compositorRef.current = null;
-    streamsRef.current = null;
+    releaseCapture();
     setStage("setup");
   }
 
@@ -216,10 +297,7 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
     if (onBeforeRecordingStart) {
       const allowed = await onBeforeRecordingStart();
       if (!allowed) {
-        compositorRef.current?.stop();
-        stopStream(streamsRef.current?.screenStream);
-        stopStream(streamsRef.current?.webcamStream);
-        stopStream(streamsRef.current?.micStream);
+        releaseCapture();
         setStage("setup");
         onRecordingBlocked?.();
         return;
@@ -302,9 +380,11 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
 
     const blob = recorderRef.current ? await recorderRef.current.stop() : null;
 
-    stopStream(streamsRef.current?.screenStream);
-    stopStream(streamsRef.current?.webcamStream);
-    stopStream(streamsRef.current?.micStream);
+    // Only now that the recorder has flushed — releasing the capture any
+    // earlier would let the setup placeholder be drawn into the canvas
+    // (and so into the tail of the recording) while it was still reading.
+    releaseCapture();
+    compositorRef.current?.start();
 
     stoppingRef.current = false;
 
@@ -351,6 +431,8 @@ export function useScreenRecording(options: UseScreenRecordingOptions = {}) {
     setCropLeft,
     cropRight,
     setCropRight,
+    faceFrame,
+    setFaceFrame,
     countdown,
     elapsedSeconds,
     error,

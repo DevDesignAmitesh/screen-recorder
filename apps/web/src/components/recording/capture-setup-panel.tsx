@@ -1,16 +1,24 @@
 import { MonitorUp } from "lucide-react";
 
+import { FaceFrameControls } from "@/components/recording/face-frame-controls";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { Wallpaper } from "@/lib/api";
+import type { FaceFrame } from "@/lib/recording/face-frame";
 
-// The whole "setup" stage: pick a wallpaper, choose whether cam/mic start
-// on, then share a screen. Shared verbatim between /record and /try.
+// The whole "setup" stage: pick a wallpaper, size/round/place the face-cam
+// frame, choose whether cam/mic start on, then share a screen. Every
+// choice here is reflected live on the preview canvas the page renders
+// directly above this panel, so none of it has to be imagined — none of
+// it touches the camera or screen, either; that's only ever requested
+// once "Choose what to share" below is clicked.
 export function CaptureSetupPanel({
   wallpapers,
   wallpapersLoading,
   selectedWallpaperId,
   onSelectWallpaper,
+  faceFrame,
+  onFaceFrameChange,
   includeWebcam,
   onIncludeWebcamChange,
   includeMic,
@@ -21,6 +29,8 @@ export function CaptureSetupPanel({
   wallpapersLoading: boolean;
   selectedWallpaperId: string | null;
   onSelectWallpaper: (id: string) => void;
+  faceFrame: FaceFrame;
+  onFaceFrameChange: (frame: FaceFrame) => void;
   includeWebcam: boolean;
   onIncludeWebcamChange: (checked: boolean) => void;
   includeMic: boolean;
@@ -59,6 +69,8 @@ export function CaptureSetupPanel({
           </div>
         )}
       </div>
+
+      <FaceFrameControls faceFrame={faceFrame} onFaceFrameChange={onFaceFrameChange} disabled={!includeWebcam} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
         <label className="flex items-center gap-2 text-sm">

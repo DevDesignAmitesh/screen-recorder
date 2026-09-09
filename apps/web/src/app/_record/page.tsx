@@ -45,6 +45,8 @@ export default function RecordPage() {
     setCropLeft,
     cropRight,
     setCropRight,
+    faceFrame,
+    setFaceFrame,
     countdown,
     elapsedSeconds,
     error,
@@ -136,12 +138,29 @@ export default function RecordPage() {
       <video ref={screenVideoRef} muted playsInline style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
       <video ref={webcamVideoRef} muted playsInline style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
 
+      {/* Also the setup-stage preview: nothing is shared or captured yet
+          (camera/screen permission is only asked for once "Choose what
+          to share" below is clicked), so the compositor just draws the
+          chosen wallpaper and a placeholder for the screen — tap the
+          face-frame outline right here to nudge it around before you
+          share (see FaceFrameTapOverlay). */}
+      <CapturePreview
+        canvasRef={canvasRef}
+        countdown={countdown}
+        showCountdown={stage === "countdown"}
+        hidden={false}
+        faceFrame={includeWebcam ? faceFrame : undefined}
+        onFaceFrameChange={stage === "setup" || stage === "live" ? setFaceFrame : undefined}
+      />
+
       {stage === "setup" && (
         <CaptureSetupPanel
           wallpapers={wallpapers}
           wallpapersLoading={wallpapersLoading}
           selectedWallpaperId={selectedWallpaperId}
           onSelectWallpaper={setSelectedWallpaperId}
+          faceFrame={faceFrame}
+          onFaceFrameChange={setFaceFrame}
           includeWebcam={includeWebcam}
           onIncludeWebcamChange={setIncludeWebcam}
           includeMic={includeMic}
@@ -149,13 +168,6 @@ export default function RecordPage() {
           onStartSetup={() => void handleStartSetup()}
         />
       )}
-
-      <CapturePreview
-        canvasRef={canvasRef}
-        countdown={countdown}
-        showCountdown={stage === "countdown"}
-        hidden={stage === "setup"}
-      />
 
       {stage === "live" && (
         <CropControls

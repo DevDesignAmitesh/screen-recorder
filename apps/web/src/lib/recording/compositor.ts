@@ -1,8 +1,7 @@
 // Draws the composited frame — wallpaper background, the screen share
 // inset with rounded corners (with a manual crop so browser chrome/OS
 // taskbars can be cut out — we can't reliably auto-detect those), and (if
-// enabled) a fixed circular webcam overlay in the bottom-right corner —
-// onto a canvas, continuously. canvas.captureStream() (see recorder.ts)
+// enabled) the face-cam overlay — onto a canvas, continuously. canvas.captureStream() (see recorder.ts)
 // reads straight off this canvas, so whatever's drawn here is what gets
 // recorded.
 //
@@ -19,8 +18,18 @@
 // regardless of which tab is focused — the worker just pings the main
 // thread on each tick to run the actual (DOM/canvas-bound) draw call.
 //
-// v1 has no template/position picker (see project README) — the webcam
-// overlay spot is fixed.
+// The webcam overlay's width/height/corner-rounding/position are
+// configurable (see face-frame.ts) — set via setFaceFrame, and
+// live-updated as the user adjusts the sliders or nudges it on the
+// preview.
+
+import {
+  DEFAULT_FACE_FRAME,
+  faceFrameRadius,
+  faceFrameRect,
+  type FaceFrame,
+  type FrameRect,
+} from "@/lib/recording/face-frame";
 
 export interface CompositorOptions {
   width: number;
@@ -39,8 +48,6 @@ export interface ScreenCrop {
 
 const NO_CROP: ScreenCrop = { top: 0, bottom: 0, left: 0, right: 0 };
 
-const WEBCAM_RADIUS = 110;
-const WEBCAM_MARGIN = 48;
 const TARGET_FPS = 30;
 
 // Proportions of the canvas's own width/height, so the frame scales
@@ -76,6 +83,7 @@ export class Compositor {
   private screenVideo: HTMLVideoElement | null = null;
   private webcamVideo: HTMLVideoElement | null = null;
   private screenCrop: ScreenCrop = NO_CROP;
+  private faceFrame: FaceFrame = DEFAULT_FACE_FRAME;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -98,6 +106,12 @@ export class Compositor {
 
   setWebcamVideo(video: HTMLVideoElement | null) {
     this.webcamVideo = video;
+  }
+
+  /** Width/height/corner-rounding/position of the face-cam overlay — see
+   * face-frame.ts. */
+  setFaceFrame(frame: FaceFrame) {
+    this.faceFrame = frame;
   }
 
   /** Fractions (0–1) trimmed off each edge of the raw screen video before
@@ -185,11 +199,21 @@ export class Compositor {
     ctx.clip();
     ctx.fillStyle = "#111";
     ctx.fillRect(frameX, frameY, frameW, frameH);
-    if (this.screenVideo && this.screenVideo.readyState >= 2) {
-      // Cover-fit, not contain — fills the frame completely (cropping any
-      // excess) so there's never a black letterbox/pillarbox bar showing
-      // when the shared screen's aspect ratio doesn't exactly match.
-      drawCoverCropped(ctx, this.screenVideo, this.screenCrop, frameX, frameY, frameW, frameH);
+    if (this.screenVideo) {
+      if (this.screenVideo.readyState >= 2) {
+        // Cover-fit, not contain — fills the frame completely (cropping any
+        // excess) so there's never a black letterbox/pillarbox bar showing
+        // when the shared screen's aspect ratio doesn't exactly match.
+        drawCoverCropped(ctx, this.screenVideo, this.screenCrop, frameX, frameY, frameW, frameH);
+      }
+      // A screen video that's attached but not yet decodable just leaves
+      // the black fill above — deliberately NOT the placeholder, which
+      // would otherwise flash into a recording on a momentary stall.
+    } else {
+      // Nothing shared at all — the setup-stage preview, where the point
+      // is to show what the wallpaper and face frame will look like
+      // before committing to a screen share.
+      drawScreenPlaceholder(ctx, frameX, frameY, frameW, frameH);
     }
     ctx.restore();
   }
@@ -198,35 +222,59 @@ export class Compositor {
     if (!this.webcamVideo || this.webcamVideo.readyState < 2) return;
     const { ctx } = this;
 
-    const cx = width - WEBCAM_MARGIN - WEBCAM_RADIUS;
-    const cy = height - WEBCAM_MARGIN - WEBCAM_RADIUS;
+    const rect = faceFrameRect(this.faceFrame, width, height);
+    const radius = faceFrameRadius(this.faceFrame, rect);
+    // Border/shadow scale with the canvas rather than being fixed pixel
+    // values, so a small frame doesn't end up mostly border.
+    const borderWidth = Math.max(2, Math.min(rect.w, rect.h) * 0.028);
 
+    // Shadow pass — filled behind the frame so the blur has something to
+    // fall off, rather than shadowing the video draw itself.
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, WEBCAM_RADIUS, 0, Math.PI * 2);
-    ctx.closePath();
+    faceFramePath(ctx, rect, radius);
     ctx.shadowColor = "rgba(0,0,0,0.4)";
-    ctx.shadowBlur = 24;
+    ctx.shadowBlur = width * 0.0125;
     ctx.fillStyle = "#000";
     ctx.fill();
     ctx.restore();
 
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, WEBCAM_RADIUS, 0, Math.PI * 2);
-    ctx.closePath();
+    faceFramePath(ctx, rect, radius);
     ctx.clip();
-    drawCover(ctx, this.webcamVideo, cx - WEBCAM_RADIUS, cy - WEBCAM_RADIUS, WEBCAM_RADIUS * 2, WEBCAM_RADIUS * 2);
+    drawCover(ctx, this.webcamVideo, rect.x, rect.y, rect.w, rect.h);
     ctx.restore();
 
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, WEBCAM_RADIUS, 0, Math.PI * 2);
-    ctx.lineWidth = 6;
+    faceFramePath(ctx, rect, radius);
+    ctx.lineWidth = borderWidth;
     ctx.strokeStyle = "#fff";
     ctx.stroke();
     ctx.restore();
   }
+}
+
+/** The face frame's outline. Just a rounded rect at whatever radius the
+ * frame calls for — at radius = min(w,h)/2 on an equal-width/height
+ * frame that's already a full circle (four quarter-circle corners
+ * meeting in the middle of each side), so there's no need for a separate
+ * ellipse path. Leaves the path current so the caller can fill/clip/stroke. */
+function faceFramePath(ctx: CanvasRenderingContext2D, rect: FrameRect, radius: number) {
+  roundedRectPath(ctx, rect.x, rect.y, rect.w, rect.h, radius);
+}
+
+/** Stand-in for the screen share in the setup preview — a muted panel
+ * with a label, so the frame reads as "your screen goes here" rather
+ * than as a bug. */
+function drawScreenPlaceholder(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  ctx.save();
+  ctx.fillStyle = "rgba(255,255,255,0.06)";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `500 ${Math.round(w * 0.035)}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+  ctx.fillText("Your shared screen appears here", x + w / 2, y + h / 2);
+  ctx.restore();
 }
 
 function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
