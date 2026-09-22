@@ -9,6 +9,12 @@
 // (MediaRecorder producing H.264/AAC directly), falling back to WebM
 // where it doesn't — feature-detected via MediaRecorder.isTypeSupported,
 // never assumed.
+//
+// Chunks are buffered via chunk-store.ts (IndexedDB) rather than a plain
+// array, so recording a long session doesn't grow the tab's memory usage
+// for its whole duration — only reassembling the final Blob on stop does.
+
+import { createChunkStore } from "@/lib/recording/chunk-store";
 
 export interface RecorderHandle {
   start: () => void;
@@ -42,15 +48,22 @@ export function createRecorder(canvas: HTMLCanvasElement, micStream: MediaStream
   const blobType = mimeType?.split(";")[0] ?? "video/webm";
 
   const mediaRecorder = new MediaRecorder(outputStream, mimeType ? { mimeType } : undefined);
-  const chunks: BlobPart[] = [];
+  const chunkStore = createChunkStore();
 
   mediaRecorder.ondataavailable = (event) => {
-    if (event.data.size > 0) chunks.push(event.data);
+    if (event.data.size > 0) chunkStore.add(event.data);
   };
+
+  async function assembleAndClear(): Promise<Blob> {
+    const parts = await chunkStore.readAllInOrder();
+    const blob = new Blob(parts, { type: blobType });
+    await chunkStore.clear();
+    return blob;
+  }
 
   let resolveStop: ((blob: Blob) => void) | null = null;
   mediaRecorder.onstop = () => {
-    resolveStop?.(new Blob(chunks, { type: blobType }));
+    void assembleAndClear().then((blob) => resolveStop?.(blob));
   };
 
   return {
@@ -60,11 +73,11 @@ export function createRecorder(canvas: HTMLCanvasElement, micStream: MediaStream
     resume: () => mediaRecorder.resume(),
     stop: () =>
       new Promise<Blob>((resolve) => {
-        resolveStop = resolve;
         if (mediaRecorder.state === "inactive") {
-          resolve(new Blob(chunks, { type: blobType }));
+          void assembleAndClear().then(resolve);
           return;
         }
+        resolveStop = resolve;
         mediaRecorder.stop();
       }),
   };
